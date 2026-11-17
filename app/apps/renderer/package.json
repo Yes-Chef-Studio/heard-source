@@ -1,0 +1,20 @@
+{
+  "name": "renderer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Renders DOM snapshots from the capture widget into screenshots with headless Chromium/WebKit/Firefox.",
+  "scripts": {
+    "build": "esbuild src/rebuild.js --bundle --format=iife --target=es2020 --minify --outfile=dist/rebuild.js",
+    "dev": "bun run build && node --watch src/server.mjs",
+    "start": "node src/server.mjs",
+    "browsers": "playwright install chromium webkit firefox"
+  },
+  "dependencies": {
+    "playwright": "1.64.1",
+    "rrweb-snapshot": "2.1.7"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

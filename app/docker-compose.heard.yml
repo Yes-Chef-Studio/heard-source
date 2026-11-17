@@ -1,0 +1,149 @@
+# Heard production stack: API, web app, snapshot renderer, Postgres, and (optionally) SeaweedFS for
+# storage. Host-agnostic: runs on any Linux box with Docker (Hetzner, etc.). On Cloudflare the
+# renderer image runs as a Container and the rest maps to Workers/Hyperdrive/R2 instead.
+#
+#   cp deploy/heard.env.example deploy/heard.env   # fill it in
+#   docker compose -f docker-compose.heard.yml --env-file deploy/heard.env up -d --build
+#   (add --profile local-storage to run SeaweedFS storage instead of R2/S3)
+#
+# Networks: the renderer fetches arbitrary URLs from client snapshots, so it sits on its own
+# network with the API only. It has internet access but no route to Postgres or storage.
+name: heard
+
+x-env: &env
+  env_file:
+    - ./deploy/heard.env
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: heard
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: heard
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U heard -d heard"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Self-hosted S3-compatible storage (SeaweedFS, Apache-2.0). MinIO no longer publishes images.
+  # Exposed on :9000; reachable inside the stack as http://storage:8333.
+  storage:
+    profiles: [local-storage]
+    image: chrislusf/seaweedfs:4.52
+    restart: unless-stopped
+    command: ["server", "-dir=/data", "-s3", "-s3.port=8333", "-s3.config=/etc/heard/s3.json"]
+    configs:
+      - source: s3_identities
+        target: /etc/heard/s3.json
+    ports:
+      - "${STORAGE_PORT:-9000}:8333"
+    volumes:
+      - storage_data:/data
+    networks: [data]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9333/cluster/status >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  storage-setup:
+    profiles: [local-storage]
+    image: chrislusf/seaweedfs:4.52
+    depends_on:
+      storage:
+        condition: service_healthy
+    networks: [data]
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - echo "s3.bucket.create -name ${STORAGE_BUCKET:-heard}" | weed shell -master=storage:9333
+
+  migrate:
+    <<: *env
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    image: heard-server:local
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [data]
+    environment:
+      NODE_ENV: production
+    command: ["bun", "run", "--filter", "@crikket/db", "db:migrate"]
+
+  renderer:
+    build:
+      context: .
+      dockerfile: apps/renderer/Dockerfile
+    image: heard-renderer:local
+    restart: unless-stopped
+    environment:
+      RENDERER_SECRET: ${RENDERER_SECRET:?set RENDERER_SECRET}
+    networks: [render]
+    # Chromium needs more than Docker's default 64 MB of shared memory.
+    shm_size: 1gb
+    init: true
+
+  server:
+    <<: *env
+    image: heard-server:local
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      renderer:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      RENDERER_URL: http://renderer:3102
+      RENDERER_SECRET: ${RENDERER_SECRET:?set RENDERER_SECRET}
+    ports:
+      - "${SERVER_PORT:-3000}:3000"
+      - "${WEB_PORT:-3001}:3001"
+    networks: [data, render]
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://localhost:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  web:
+    <<: *env
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    image: heard-web:local
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+    # Shares the API's network namespace so server-side rendering reaches it on localhost.
+    network_mode: "service:server"
+    environment:
+      NODE_ENV: production
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://localhost:3001').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+networks:
+  data: {}
+  render: {}
+
+volumes:
+  postgres_data:
+  storage_data:
+
+configs:
+  s3_identities:
+    content: |
+      {"identities": [{"name": "heard", "credentials": [{"accessKey": "${STORAGE_ACCESS_KEY_ID:-heard}", "secretKey": "${STORAGE_SECRET_ACCESS_KEY:-heard-dev-secret}"}], "actions": ["Admin", "Read", "Write", "List", "Tagging"]}]}

@@ -1,0 +1,168 @@
+name: Heard
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  workflow_dispatch:
+    inputs:
+      accuracy:
+        description: "Also run the Linux screenshot-accuracy test (loads third-party sites)"
+        type: boolean
+        default: false
+      crossos_release:
+        description: "Release tag holding Mac capture exports to replay on Linux"
+        type: string
+        default: "crossos-mac-latest"
+
+permissions:
+  contents: read
+
+jobs:
+  # Build the production Docker images, boot the full stack, and check it end to end.
+  deploy-smoke:
+    # Adding a label shouldn't rebuild everything.
+    if: github.event.action != 'labeled'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write CI environment
+        run: |
+          secret() { openssl rand -hex 32; }
+          PG=$(secret)
+          cat > deploy/heard.env <<EOF
+          POSTGRES_PASSWORD=$PG
+          DATABASE_URL=postgresql://heard:$PG@postgres:5432/heard
+          BETTER_AUTH_SECRET=$(secret)
+          BETTER_AUTH_URL=http://localhost:3000
+          CORS_ORIGINS=http://localhost:3001
+          NEXT_PUBLIC_SITE_URL=http://localhost:3001
+          NEXT_PUBLIC_APP_URL=http://localhost:3001
+          NEXT_PUBLIC_SERVER_URL=http://localhost:3000
+          RENDERER_SECRET=$(secret)
+          ENABLE_PAYMENTS=false
+          STORAGE_BUCKET=heard
+          STORAGE_REGION=us-east-1
+          STORAGE_ENDPOINT=http://storage:8333
+          STORAGE_ADDRESSING_STYLE=path
+          STORAGE_ACCESS_KEY_ID=heard
+          STORAGE_SECRET_ACCESS_KEY=heard-ci-secret
+          EOF
+
+      - name: Build images
+        run: docker compose -f docker-compose.heard.yml --env-file deploy/heard.env --profile local-storage build
+
+      - name: Start stack
+        run: |
+          docker compose -f docker-compose.heard.yml --env-file deploy/heard.env --profile local-storage up -d
+          for i in $(seq 1 150); do
+            if curl -fsS -o /dev/null http://localhost:3000 && curl -sS -o /dev/null http://localhost:3001/login; then
+              echo "Stack up after $((i * 2)) s"; break
+            fi
+            if [ "$i" = 150 ]; then echo "Stack did not come up"; docker compose -f docker-compose.heard.yml --env-file deploy/heard.env --profile local-storage ps -a; exit 1; fi
+            sleep 2
+          done
+          docker compose -f docker-compose.heard.yml --env-file deploy/heard.env --profile local-storage ps -a
+
+      - name: Create a test org and capture key (staging origin only)
+        run: |
+          docker compose -f docker-compose.heard.yml --env-file deploy/heard.env exec -T postgres \
+            psql -v ON_ERROR_STOP=1 -U heard -d heard -c "
+              insert into organization (id, name, slug, created_at) values ('org_ci', 'CI', 'ci', now());
+              insert into capture_public_key (id, organization_id, key, label, allowed_origins)
+                values ('key_ci', 'org_ci', 'crk_ci_smoke_000000000000', 'CI staging',
+                        ARRAY['https://staging-site.webflow.io']);"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install smoke-test tools
+        working-directory: spike/capture
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run build
+
+      - name: Smoke test
+        working-directory: spike/capture
+        run: >
+          node smoke.mjs --api http://localhost:3000 --web http://localhost:3001
+          --key crk_ci_smoke_000000000000 --origin https://staging-site.webflow.io
+
+      - name: Renderer isolation (no route to Postgres)
+        run: |
+          if docker compose -f docker-compose.heard.yml --env-file deploy/heard.env exec -T renderer \
+               node -e "require('net').connect(5432,'postgres').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"; then
+            echo "FAIL: renderer can reach postgres"; exit 1
+          fi
+          echo "PASS: renderer cannot reach postgres"
+
+      - name: Logs
+        if: always()
+        run: docker compose -f docker-compose.heard.yml --env-file deploy/heard.env --profile local-storage logs --no-color > compose.log 2>&1 || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: deploy-smoke
+          path: |
+            app/compose.log
+            spike/capture/smoke-*.png
+
+  # Does the snapshot pipeline stay accurate on Linux, where production runs?
+  linux-accuracy:
+    # Manual run with "accuracy" ticked, or add the "accuracy" label to a PR.
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.accuracy) ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'accuracy'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CROSSOS_RELEASE: ${{ inputs.crossos_release || 'crossos-mac-latest' }}
+    defaults:
+      run:
+        working-directory: spike/capture
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium webkit firefox
+          npm run build
+
+      # Linux browsers as the reviewers, rendered on Linux: same as the Mac regression.
+      - name: Harness (Linux reviewers, Linux renderer)
+        run: |
+          node harness.mjs https://www.yeschef.studio/ https://daddyyankee.com/ https://floatfinancial.com/ \
+            --browsers chromium,webkit,firefox --widths 1440,390 --scrolls 0,1200 | tee harness.log
+
+      # Mac captures (snapshot + real Mac screenshot) rendered on Linux: the production path for
+      # a Safari reviewer.
+      - name: Cross-OS replay (Mac captures, Linux renderer)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p crossos-in
+          gh release download "$CROSSOS_RELEASE" --repo "${{ github.repository }}" --pattern '*.tar.gz' --dir .
+          tar -xzf *.tar.gz -C crossos-in
+          node crossos.mjs crossos-in/export --out crossos-results.json --diffs crossos-diffs | tee crossos.log
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-accuracy
+          path: |
+            spike/capture/harness.log
+            spike/capture/crossos.log
+            spike/capture/crossos-results.json
+            spike/capture/crossos-diffs
