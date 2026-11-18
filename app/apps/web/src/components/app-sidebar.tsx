@@ -1,6 +1,7 @@
 "use client"
 
 import type { authClient } from "@crikket/auth/client"
+import { siteConfig } from "@crikket/shared/config/site"
 import {
   Sidebar,
   SidebarContent,
@@ -95,11 +96,15 @@ const navSettings = [
     url: "/settings/keys" as const,
     icon: KeyRound,
   },
-  {
-    title: "Billing",
-    url: "/settings/billing" as const,
-    icon: CreditCard,
-  },
+  ...(siteConfig.billingEnabled
+    ? [
+        {
+          title: "Billing",
+          url: "/settings/billing" as const,
+          icon: CreditCard,
+        },
+      ]
+    : []),
 ] as const
 
 export function AppSidebar({

@@ -1,4 +1,5 @@
 import { authClient } from "@crikket/auth/client"
+import { siteConfig } from "@crikket/shared/config/site"
 import {
   Card,
   CardContent,
@@ -8,7 +9,7 @@ import {
 } from "@crikket/ui/components/ui/card"
 import type { Metadata } from "next"
 import { headers } from "next/headers"
-import { redirect } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 
 import { SuccessActions } from "./_components/success-actions"
 import { SuccessPageGuard } from "./_components/success-page-guard"
@@ -37,6 +38,7 @@ function readCheckoutId(
 }
 
 export default async function SuccessPage({ searchParams }: SuccessPageProps) {
+  if (!siteConfig.billingEnabled) notFound()
   const resolvedSearchParams = await searchParams
   const checkoutId = readCheckoutId(resolvedSearchParams.checkout_id)
   const requestHeaders = await headers()

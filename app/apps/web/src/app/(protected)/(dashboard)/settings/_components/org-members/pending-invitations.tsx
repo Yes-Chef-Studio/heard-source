@@ -1,5 +1,6 @@
 "use client"
 
+import { env } from "@crikket/env/web"
 import { Badge } from "@crikket/ui/components/ui/badge"
 import { Button } from "@crikket/ui/components/ui/button"
 import {
@@ -9,6 +10,8 @@ import {
   CardTitle,
 } from "@crikket/ui/components/ui/card"
 
+import { toast } from "sonner"
+
 import type { OrganizationInvitationRow } from "./types"
 
 interface PendingInvitationsProps {
@@ -16,6 +19,21 @@ interface PendingInvitationsProps {
   canManageMembers: boolean
   cancelingInvitationId: string | null
   onCancelInvitation: (invitationId: string) => Promise<void>
+}
+
+function inviteLink(invitationId: string): string {
+  return `${env.NEXT_PUBLIC_APP_URL}/invite/${invitationId}`
+}
+
+async function copyInviteLink(invitationId: string, email: string) {
+  try {
+    await navigator.clipboard.writeText(inviteLink(invitationId))
+    toast.success(
+      `Link copied. Send it to ${email} yourself; Heard doesn't email it.`
+    )
+  } catch {
+    toast.error("Couldn't copy. Select the link and copy it by hand.")
+  }
 }
 
 function formatDate(value: string): string {
@@ -32,6 +50,10 @@ export function PendingInvitations({
     <Card>
       <CardHeader>
         <CardTitle className="text-lg">Pending Invitations</CardTitle>
+        <p className="text-muted-foreground text-sm">
+          Heard doesn't send emails. Copy each invite link and send it
+          privately; it works once and expires after two days.
+        </p>
       </CardHeader>
       <CardContent>
         {invitations.length === 0 ? (
@@ -58,16 +80,29 @@ export function PendingInvitations({
                     </div>
                   </div>
                   {canManageMembers ? (
-                    <Button
-                      disabled={isCanceling}
-                      onClick={async () =>
-                        onCancelInvitation(invitation.invitationId)
-                      }
-                      size="sm"
-                      variant="outline"
-                    >
-                      {isCanceling ? "Canceling..." : "Cancel invite"}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() =>
+                          copyInviteLink(
+                            invitation.invitationId,
+                            invitation.email
+                          )
+                        }
+                        size="sm"
+                      >
+                        Copy link
+                      </Button>
+                      <Button
+                        disabled={isCanceling}
+                        onClick={async () =>
+                          onCancelInvitation(invitation.invitationId)
+                        }
+                        size="sm"
+                        variant="outline"
+                      >
+                        {isCanceling ? "Canceling..." : "Cancel invite"}
+                      </Button>
+                    </div>
                   ) : null}
                 </div>
               )

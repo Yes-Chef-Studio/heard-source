@@ -11,6 +11,7 @@ import {
   shareRouter,
 } from "./bug-report"
 import { captureKeyRouter } from "./capture-key"
+import { inviteRouter } from "./invite"
 
 export const appRouter = {
   healthCheck: publicProcedure.handler(() => {
@@ -23,6 +24,7 @@ export const appRouter = {
   project: projectRouter,
   notification: notificationRouter,
   share: shareRouter,
+  invite: inviteRouter,
 }
 export type AppRouter = typeof appRouter
 export type AppRouterClient = RouterClient<typeof appRouter>

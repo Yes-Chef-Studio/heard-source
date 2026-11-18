@@ -1,7 +1,8 @@
 import { authClient } from "@crikket/auth/client"
+import { siteConfig } from "@crikket/shared/config/site"
 import type { Metadata } from "next"
 import { headers } from "next/headers"
-import { redirect } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 
 import { getProtectedAuthData } from "@/app/(protected)/_lib/get-protected-auth-data"
 import { client } from "@/utils/orpc"
@@ -22,6 +23,7 @@ type BillingPlanLimitsSnapshot = Awaited<
 >
 
 export default async function BillingSettingsPage() {
+  if (!siteConfig.billingEnabled) notFound()
   const { organizations, session } = await getProtectedAuthData()
 
   if (!session) {

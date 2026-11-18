@@ -18,6 +18,9 @@ export const siteConfig = {
     twitterCard: "summary_large_image" as const,
     defaultOgImage: "/og.png",
   },
+  // Billing pages (plans, checkout) inherited from Crikket. Hidden: Heard runs with payments off.
+  // Set to true to show them again.
+  billingEnabled: false,
   author: {
     name: "Yes Chef Studio",
     twitter: "",

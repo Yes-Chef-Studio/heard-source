@@ -1,5 +1,6 @@
 "use client"
 
+import { siteConfig } from "@crikket/shared/config/site"
 import { cn } from "@crikket/ui/lib/utils"
 import { Building2, CreditCard, KeyRound, UserRound } from "lucide-react"
 import type { Route } from "next"
@@ -25,12 +26,16 @@ const SETTINGS_ITEMS = [
     description: "Widget keys, origins, embeds",
     icon: KeyRound,
   },
-  {
-    href: "/settings/billing",
-    title: "Billing",
-    description: "Plan, pricing, payments",
-    icon: CreditCard,
-  },
+  ...(siteConfig.billingEnabled
+    ? [
+        {
+          href: "/settings/billing",
+          title: "Billing",
+          description: "Plan, pricing, payments",
+          icon: CreditCard,
+        },
+      ]
+    : []),
 ] as const
 
 export function SettingsNavigation() {

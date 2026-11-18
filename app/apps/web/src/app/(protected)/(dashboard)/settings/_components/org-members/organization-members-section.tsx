@@ -72,7 +72,7 @@ export function OrganizationMembersSection({
       }
     },
     onSuccess: () => {
-      toast.success("Invitation sent")
+      toast.success("Invite created. Copy its link below and send it to them.")
       router.refresh()
     },
     onError: (error) => {
