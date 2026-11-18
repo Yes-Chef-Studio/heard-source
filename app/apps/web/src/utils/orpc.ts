@@ -1,11 +1,11 @@
 import type { AppRouterClient } from "@crikket/api/routers/index"
 
-import { env } from "@crikket/env/web"
 import { createORPCClient } from "@orpc/client"
 import { RPCLink } from "@orpc/client/fetch"
 import { createTanstackQueryUtils } from "@orpc/tanstack-query"
 import { QueryCache, QueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
+import { rpcURL } from "@/lib/api-url"
 
 export const queryClient = new QueryClient({
   queryCache: new QueryCache({
@@ -25,7 +25,7 @@ export const queryClient = new QueryClient({
 })
 
 export const link = new RPCLink({
-  url: `${env.NEXT_PUBLIC_SERVER_URL}/rpc`,
+  url: rpcURL,
   fetch(url, options) {
     return fetch(url, {
       ...options,

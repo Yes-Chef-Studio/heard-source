@@ -1,6 +1,6 @@
 # Heard production stack: API, web app, snapshot renderer, Postgres, and (optionally) SeaweedFS for
-# storage. Host-agnostic: runs on any Linux box with Docker (Hetzner, etc.). On Cloudflare the
-# renderer image runs as a Container and the rest maps to Workers/Hyperdrive/R2 instead.
+# storage. Host-agnostic: runs on any Linux box with Docker (Hetzner, etc.).
+# Cloudflare setup lives in deploy/cloudflare (Containers + R2, deployed by GitHub Actions).
 #
 #   cp deploy/heard.env.example deploy/heard.env   # fill it in
 #   docker compose -f docker-compose.heard.yml --env-file deploy/heard.env up -d --build

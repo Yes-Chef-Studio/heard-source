@@ -1,11 +1,11 @@
 import type { AppRouterClient } from "@crikket/api/routers/index"
-import { env } from "@crikket/env/web"
 import { reportNonFatalError } from "@crikket/shared/lib/errors"
 import { createORPCClient } from "@orpc/client"
 import { RPCLink } from "@orpc/client/fetch"
 import type { Metadata } from "next"
 import { headers } from "next/headers"
 import type { ReactNode } from "react"
+import { rpcURL } from "@/lib/api-url"
 
 interface BugReportLayoutProps {
   children: ReactNode
@@ -23,7 +23,7 @@ export async function generateMetadata({
 
   try {
     const link = new RPCLink({
-      url: `${env.NEXT_PUBLIC_SERVER_URL}/rpc`,
+      url: rpcURL,
       fetch(url, options) {
         return fetch(url, {
           ...options,
