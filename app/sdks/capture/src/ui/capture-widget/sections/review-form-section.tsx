@@ -211,6 +211,7 @@ export function ReviewFormSection({
               <Label htmlFor={`${formKey}-title`}>What's the issue?</Label>
               <Input
                 aria-invalid={Boolean(form.visibleErrors.title)}
+                aria-required="true"
                 id={`${formKey}-title`}
                 maxLength={200}
                 onBlur={() => {
@@ -257,7 +258,12 @@ export function ReviewFormSection({
               <Label htmlFor={`${formKey}-priority`}>Priority</Label>
               <select
                 aria-invalid={Boolean(form.visibleErrors.priority)}
-                className={cn("h-10 px-3", FIELD_CLASSES)}
+                aria-required="true"
+                className={cn(
+                  "h-10 px-3",
+                  FIELD_CLASSES,
+                  form.draft.priority === "" ? "text-muted-foreground" : null
+                )}
                 id={`${formKey}-priority`}
                 onBlur={() => {
                   form.touchField("priority")
@@ -271,8 +277,15 @@ export function ReviewFormSection({
                 }}
                 value={form.draft.priority}
               >
+                <option disabled value="">
+                  Select priority
+                </option>
                 {capturePriorityOptions.map((priority) => (
-                  <option key={priority.value} value={priority.value}>
+                  <option
+                    className="text-foreground"
+                    key={priority.value}
+                    value={priority.value}
+                  >
                     {priority.label}
                   </option>
                 ))}

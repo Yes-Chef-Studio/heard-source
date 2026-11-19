@@ -29,9 +29,18 @@ export interface ScreenshotRectangleAnnotation {
   color: ScreenshotAnnotationColor
 }
 
+// A straight arrow from start to end; the head is drawn at the end point.
+export interface ScreenshotArrowAnnotation {
+  kind: "arrow"
+  start: ScreenshotAnnotationPoint
+  end: ScreenshotAnnotationPoint
+  color: ScreenshotAnnotationColor
+}
+
 export type ScreenshotAnnotation =
   | ScreenshotStrokeAnnotation
   | ScreenshotRectangleAnnotation
+  | ScreenshotArrowAnnotation
 
 const JPEG_EXPORT_QUALITY = 0.9
 
@@ -126,6 +135,14 @@ function drawAnnotation(input: {
   height: number
   width: number
 }): void {
+  if (input.annotation.kind === "arrow") {
+    drawArrow({
+      ...input,
+      annotation: input.annotation,
+    })
+    return
+  }
+
   if (input.annotation.kind === "rectangle") {
     drawRectangle({
       ...input,
@@ -201,6 +218,58 @@ function drawRectangle(input: {
   context.lineWidth = Math.max(3, Math.round(Math.min(width, height) * 0.005))
   context.fillRect(x, y, rectangleWidth, rectangleHeight)
   context.strokeRect(x, y, rectangleWidth, rectangleHeight)
+  context.restore()
+}
+
+function drawArrow(input: {
+  annotation: ScreenshotArrowAnnotation
+  context: CanvasRenderingContext2D
+  height: number
+  width: number
+}): void {
+  const { annotation, context, width, height } = input
+  const startX = annotation.start.x * width
+  const startY = annotation.start.y * height
+  const endX = annotation.end.x * width
+  const endY = annotation.end.y * height
+  const length = Math.hypot(endX - startX, endY - startY)
+  if (length < 1) {
+    return
+  }
+
+  const lineWidth = Math.max(3, Math.round(Math.min(width, height) * 0.006))
+  // The head scales with the line but never outgrows a short arrow.
+  const headLength = Math.min(Math.max(lineWidth * 4.5, 14), length * 0.6)
+  const angle = Math.atan2(endY - startY, endX - startX)
+  const spread = Math.PI / 7
+  // Stop the shaft inside the head so its round cap doesn't poke through the tip.
+  const shaftEndX = endX - Math.cos(angle) * headLength * 0.6
+  const shaftEndY = endY - Math.sin(angle) * headLength * 0.6
+
+  context.save()
+  context.strokeStyle = annotation.color
+  context.fillStyle = annotation.color
+  context.lineCap = "round"
+  context.lineJoin = "round"
+  context.lineWidth = lineWidth
+  context.beginPath()
+  context.moveTo(startX, startY)
+  context.lineTo(shaftEndX, shaftEndY)
+  context.stroke()
+
+  context.beginPath()
+  context.moveTo(endX, endY)
+  context.lineTo(
+    endX - headLength * Math.cos(angle - spread),
+    endY - headLength * Math.sin(angle - spread)
+  )
+  context.lineTo(
+    endX - headLength * Math.cos(angle + spread),
+    endY - headLength * Math.sin(angle + spread)
+  )
+  context.closePath()
+  context.fill()
+  context.stroke()
   context.restore()
 }
 

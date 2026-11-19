@@ -5,7 +5,7 @@ import type {
   BugReportStatus,
   BugReportVisibility,
 } from "@crikket/shared/constants/bug-report"
-import type { Priority } from "@crikket/shared/constants/priorities"
+import { PRIORITIES, type Priority } from "@crikket/shared/constants/priorities"
 import { Button } from "@crikket/ui/components/ui/button"
 import {
   DropdownMenu,
@@ -63,7 +63,7 @@ interface BugReportsToolbarProps {
   onPagePathChange: (value: string) => void
   onSortChange: (value: BugReportSort) => void
   onToggleStatus: (value: BugReportStatus) => void
-  onTogglePriority: (value: Priority) => void
+  onPriorityChange: (value: Priority | "") => void
   onToggleVisibility: (value: BugReportVisibility) => void
   onClearFilters: () => void
 }
@@ -91,7 +91,7 @@ export function BugReportsToolbar({
   onPagePathChange,
   onSortChange,
   onToggleStatus,
-  onTogglePriority,
+  onPriorityChange,
   onToggleVisibility,
   onClearFilters,
 }: BugReportsToolbarProps) {
@@ -163,6 +163,36 @@ export function BugReportsToolbar({
           </Select>
 
           <Select
+            onValueChange={(value) => {
+              const next = String(value ?? "")
+              onPriorityChange(next === ALL ? "" : (next as Priority | ""))
+            }}
+            value={filters.priorities[0] ?? ALL}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue>
+                {filters.priorities.length > 0
+                  ? filters.priorities
+                      .map(
+                        (value) =>
+                          PRIORITIES.find((option) => option.value === value)
+                            ?.label ?? value
+                      )
+                      .join(", ")
+                  : "All priorities"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>All priorities</SelectItem>
+              {PRIORITY_FILTER_OPTIONS.map((priority) => (
+                <SelectItem key={priority.value} value={priority.value}>
+                  {priority.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
             onValueChange={(value) => onSortChange(value as BugReportSort)}
             value={sort}
           >
@@ -198,19 +228,6 @@ export function BugReportsToolbar({
                     onCheckedChange={() => onToggleStatus(status.value)}
                   >
                     {status.label}
-                  </DropdownMenuCheckboxItem>
-                ))}
-              </DropdownMenuGroup>
-              <DropdownMenuSeparator />
-              <DropdownMenuGroup>
-                <DropdownMenuLabel>Priority</DropdownMenuLabel>
-                {PRIORITY_FILTER_OPTIONS.map((priority) => (
-                  <DropdownMenuCheckboxItem
-                    checked={filters.priorities.includes(priority.value)}
-                    key={priority.value}
-                    onCheckedChange={() => onTogglePriority(priority.value)}
-                  >
-                    {priority.label}
                   </DropdownMenuCheckboxItem>
                 ))}
               </DropdownMenuGroup>

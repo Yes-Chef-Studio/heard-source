@@ -29,7 +29,9 @@ export function validateReviewDraft(
 ): ReviewDraftErrors | undefined {
   const errors: ReviewDraftErrors = {}
 
-  if (value.title.length > 200) {
+  if (value.title.trim().length === 0) {
+    errors.title = "Describe the issue in a few words."
+  } else if (value.title.length > 200) {
     errors.title = "Title must be at most 200 characters."
   }
 
@@ -51,7 +53,9 @@ export function validateReviewDraft(
     errors.reporterEmail = "Enter a valid email address."
   }
 
-  if (!priorityValues.has(value.priority)) {
+  if (value.priority === "") {
+    errors.priority = "Choose how urgent this is."
+  } else if (!priorityValues.has(value.priority)) {
     errors.priority = "Select a valid priority."
   }
 

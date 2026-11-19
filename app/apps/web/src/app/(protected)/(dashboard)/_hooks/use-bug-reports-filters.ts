@@ -147,9 +147,10 @@ export function useBugReportsFilters() {
       setFilterSearchQuery({
         statuses: toggleValue(filters.statuses, value),
       }).catch(() => undefined),
-    togglePriority: (value: DashboardFilters["priorities"][number]) =>
+    // One priority at a time from the toolbar; an empty value shows all.
+    setPriority: (value: DashboardFilters["priorities"][number] | "") =>
       setFilterSearchQuery({
-        priorities: toggleValue(filters.priorities, value),
+        priorities: value ? [value] : EMPTY_DASHBOARD_FILTERS.priorities,
       }).catch(() => undefined),
     // Changing the site clears the page, since pages belong to a site.
     setSite: (value: string) =>

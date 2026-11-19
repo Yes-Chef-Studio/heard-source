@@ -15,6 +15,7 @@ import {
   screenshotAnnotationColorOptions,
 } from "../utils/screenshot-annotations"
 import {
+  ArrowIcon,
   DrawIcon,
   HighlightIcon,
   RectangleIcon,
@@ -24,7 +25,7 @@ import {
 import { Button } from "./primitives/button"
 import { cn } from "./primitives/cn"
 
-type AnnotationTool = "draw" | "highlight" | "rectangle"
+type AnnotationTool = "arrow" | "draw" | "highlight" | "rectangle"
 
 const DEFAULT_TOOL: AnnotationTool = "draw"
 const DEFAULT_COLOR = screenshotAnnotationColorOptions[0].value
@@ -161,6 +162,16 @@ export function ScreenshotAnnotationEditor(props: {
     const point = toCanvasPoint(event)
     event.currentTarget.setPointerCapture(event.pointerId)
 
+    if (tool === "arrow") {
+      setDraftAnnotation({
+        kind: "arrow",
+        color,
+        start: point,
+        end: point,
+      })
+      return
+    }
+
     if (tool === "rectangle") {
       rectangleOriginRef.current = point
       setDraftAnnotation({
@@ -188,6 +199,11 @@ export function ScreenshotAnnotationEditor(props: {
     }
 
     const point = toCanvasPoint(event)
+    if (draftAnnotation.kind === "arrow") {
+      setDraftAnnotation({ ...draftAnnotation, end: point })
+      return
+    }
+
     if (draftAnnotation.kind === "rectangle") {
       const origin = rectangleOriginRef.current ?? {
         x: draftAnnotation.x,
@@ -221,13 +237,28 @@ export function ScreenshotAnnotationEditor(props: {
     }
 
     const point = toCanvasPoint(event)
-    const finalizedDraft =
-      activeDraft.kind === "stroke"
-        ? {
-            ...activeDraft,
-            points: [...activeDraft.points, point],
-          }
-        : activeDraft
+    let finalizedDraft: ScreenshotAnnotation = activeDraft
+    if (activeDraft.kind === "stroke") {
+      finalizedDraft = {
+        ...activeDraft,
+        points: [...activeDraft.points, point],
+      }
+    } else if (activeDraft.kind === "arrow") {
+      finalizedDraft = { ...activeDraft, end: point }
+    }
+
+    // A click without a drag leaves no arrow.
+    if (
+      finalizedDraft.kind === "arrow" &&
+      Math.hypot(
+        finalizedDraft.end.x - finalizedDraft.start.x,
+        finalizedDraft.end.y - finalizedDraft.start.y
+      ) < 0.01
+    ) {
+      setDraftAnnotation(null)
+      draftAnnotationRef.current = null
+      return
+    }
 
     if (
       finalizedDraft.kind === "rectangle" &&
@@ -265,6 +296,15 @@ export function ScreenshotAnnotationEditor(props: {
               label="Draw"
               onClick={() => {
                 setTool("draw")
+              }}
+            />
+            <ToolButton
+              active={tool === "arrow"}
+              disabled={toolsDisabled}
+              icon={<ArrowIcon className="h-4 w-4" />}
+              label="Arrow"
+              onClick={() => {
+                setTool("arrow")
               }}
             />
             <ToolButton

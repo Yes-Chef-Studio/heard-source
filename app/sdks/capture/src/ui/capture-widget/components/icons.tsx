@@ -47,6 +47,17 @@ export function RectangleIcon(
   )
 }
 
+export function ArrowIcon(
+  props: React.SVGProps<SVGSVGElement>
+): React.JSX.Element {
+  return (
+    <SvgIcon {...props}>
+      <path d="M5 19 19 5" />
+      <path d="M9 5h10v10" />
+    </SvgIcon>
+  )
+}
+
 export function UndoIcon(
   props: React.SVGProps<SVGSVGElement>
 ): React.JSX.Element {

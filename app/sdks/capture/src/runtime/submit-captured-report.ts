@@ -1,4 +1,5 @@
 import { BUG_REPORT_VISIBILITY_OPTIONS } from "@crikket/shared/constants/bug-report"
+import { DEFAULT_PRIORITY } from "@crikket/shared/constants/priorities"
 import { defaultSubmitTransport } from "../transport/default-submit-transport"
 import type {
   CapturedMedia,
@@ -25,7 +26,8 @@ export function submitCapturedReport(input: {
       captureType: input.media.captureType,
       title: input.draft.title.trim(),
       description: input.draft.description.trim(),
-      priority: input.draft.priority,
+      // The form requires a priority, so the fallback only covers callers that skip it.
+      priority: input.draft.priority || DEFAULT_PRIORITY,
       visibility: BUG_REPORT_VISIBILITY_OPTIONS.private,
       reporter: input.draft.reporterName?.trim()
         ? {

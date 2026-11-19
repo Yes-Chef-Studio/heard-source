@@ -1,14 +1,14 @@
 import { BUG_REPORT_VISIBILITY_OPTIONS } from "@crikket/shared/constants/bug-report"
-import { DEFAULT_PRIORITY as SHARED_DEFAULT_PRIORITY } from "@crikket/shared/constants/priorities"
 import type {
   CaptureDebuggerSummary,
   CapturedMedia,
-  CapturePriority,
+  CaptureSubmissionDraft,
 } from "../../types"
 import { loadReporterIdentity } from "../reporter-identity"
 import type { CaptureUiState, CaptureUiStore } from "../types"
 
-const DEFAULT_PRIORITY: CapturePriority = SHARED_DEFAULT_PRIORITY
+// No priority is preselected: the reporter has to choose one.
+const DEFAULT_PRIORITY: CaptureSubmissionDraft["priority"] = ""
 const DEFAULT_SUMMARY: CaptureDebuggerSummary = {
   actions: 0,
   logs: 0,

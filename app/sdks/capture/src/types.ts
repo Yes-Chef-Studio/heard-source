@@ -101,7 +101,8 @@ export interface CaptureDebuggerSummary {
 export interface CaptureSubmissionDraft {
   title: string
   description: string
-  priority: CapturePriority
+  // Empty until the reporter picks one: the form asks for it.
+  priority: CapturePriority | ""
   visibility?: CaptureReportVisibility
   // Who is leaving the feedback. Required in the widget form, remembered per browser.
   reporterName?: string
