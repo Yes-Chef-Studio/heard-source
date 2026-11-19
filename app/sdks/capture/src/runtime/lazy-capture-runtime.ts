@@ -14,7 +14,7 @@ import {
   normalizeZIndex,
 } from "../utils"
 import { CaptureSdkRuntime } from "./capture-runtime"
-import { isSiteAllowed } from "./site-check"
+import { getSiteColor, isSiteAllowed, warmRenderer } from "./site-check"
 
 type MountedCaptureLauncher = ReturnType<typeof mountCaptureLauncher>
 
@@ -52,6 +52,7 @@ export class LazyCaptureSdkRuntime implements CaptureRuntimeController {
       isSiteAllowed(runtimeConfig).then((allowed) => {
         if (allowed && this.runtimeConfig === runtimeConfig) {
           this.mount(options.mountTarget)
+          warmRenderer(runtimeConfig)
         }
       })
     }
@@ -88,9 +89,11 @@ export class LazyCaptureSdkRuntime implements CaptureRuntimeController {
         this.open()
       },
       onPrefetch: () => {
+        warmRenderer(runtimeConfig)
         this.prefetchRuntime().catch(() => undefined)
       },
       zIndex: runtimeConfig.zIndex,
+      color: getSiteColor(runtimeConfig),
     })
   }
 

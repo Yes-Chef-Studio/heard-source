@@ -12,6 +12,7 @@ import { toast } from "sonner"
 
 import { formatSite } from "@/lib/relative-time"
 import { client, orpc } from "@/utils/orpc"
+import { WidgetColorControls } from "./widget-color-controls"
 
 function shareUrl(token: string): string {
   return `${window.location.origin}/p/${token}`
@@ -194,6 +195,10 @@ export function ProjectHeader({ projectId }: { projectId: string }) {
           <ShareLinkControls
             projectId={project.id}
             shareToken={project.shareToken}
+          />
+          <WidgetColorControls
+            projectId={project.id}
+            widgetColor={project.widgetColor}
           />
         </div>
       ) : null}

@@ -1,5 +1,6 @@
 import { createRoot } from "react-dom/client"
 import { CaptureWidgetRoot } from "./capture-widget/capture-widget-root"
+import { applyLauncherColor } from "./launcher-color"
 import { createCaptureUiStore } from "./store/capture-ui-store"
 import type { CaptureUiCallbacks, MountedCaptureUi } from "./types"
 
@@ -8,11 +9,14 @@ const CAPTURE_WIDGET_CSS_PLACEHOLDER = "__CRIKKET_CAPTURE_WIDGET_CSS__"
 export function mountCaptureUi(
   target: HTMLElement,
   zIndex: number,
-  callbacks: CaptureUiCallbacks
+  callbacks: CaptureUiCallbacks,
+  // The project's tab colour (#rrggbb), or null for the default.
+  color: string | null = null
 ): MountedCaptureUi {
   const hostElement = document.createElement("div")
   // Heard: excluded from DOM snapshots (see media/capture-snapshot.ts).
   hostElement.setAttribute("data-heard-widget", "")
+  applyLauncherColor(hostElement, color)
   const shadowRoot = hostElement.attachShadow({
     mode: "open",
   })

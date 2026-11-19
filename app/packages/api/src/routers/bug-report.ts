@@ -28,6 +28,7 @@ import {
   getProject,
   listProjects,
   regenerateProjectShareLink,
+  setProjectWidgetColor,
 } from "@crikket/bug-reports/procedures/projects"
 import {
   addSharedComment,
@@ -77,6 +78,7 @@ export const projectRouter = {
   get: getProject,
   regenerateShareLink: regenerateProjectShareLink,
   disableShareLink: disableProjectShareLink,
+  setWidgetColor: setProjectWidgetColor,
 }
 
 // Notifications tab. Team only.

@@ -4,7 +4,7 @@ export function Field(
   props: React.HTMLAttributes<HTMLDivElement>
 ): React.JSX.Element {
   return (
-    <div {...props} className={cn("grid gap-2", props.className)}>
+    <div {...props} className={cn("grid gap-2.5", props.className)}>
       {props.children}
     </div>
   )

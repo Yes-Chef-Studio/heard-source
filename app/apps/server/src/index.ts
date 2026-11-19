@@ -19,6 +19,7 @@ import { cors } from "hono/cors"
 import { logger } from "hono/logger"
 import { handleCaptureFinalize } from "./capture/finalize-route"
 import { handleRenderSnapshot } from "./capture/render-snapshot-route"
+import { handleRendererWarmup } from "./capture/renderer-warmup-route"
 import { handleSiteCheck } from "./capture/site-check-route"
 import { handleCaptureToken } from "./capture/token-route"
 import { handleCaptureUploadSession } from "./capture/upload-session-route"
@@ -109,7 +110,8 @@ app.use(
           c.req.path === "/api/embed/bug-report-upload-session" ||
           c.req.path === "/api/embed/bug-report-finalize" ||
           c.req.path === "/api/embed/render-snapshot" ||
-          c.req.path === "/api/embed/site-check") &&
+          c.req.path === "/api/embed/site-check" ||
+          c.req.path === "/api/embed/renderer-warmup") &&
         origin.trim().length > 0
       ) {
         return origin
@@ -139,6 +141,11 @@ app.post("/api/embed/capture-token", (c) => {
 })
 app.get("/api/embed/site-check", (c) => {
   return handleSiteCheck({
+    request: c.req.raw,
+  })
+})
+app.get("/api/embed/renderer-warmup", (c) => {
+  return handleRendererWarmup({
     request: c.req.raw,
   })
 })

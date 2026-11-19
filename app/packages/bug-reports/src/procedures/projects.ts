@@ -22,7 +22,11 @@ export interface ProjectSummary {
   lastReportAt: string | null
   // Null when the project has no client share link.
   shareToken: string | null
+  // The widget tab colour (#rrggbb); null uses Heard's default.
+  widgetColor: string | null
 }
+
+export const WIDGET_COLOR_PATTERN = /^#[0-9a-f]{6}$/
 
 function newShareToken(): string {
   return randomBytes(24).toString("base64url")
@@ -76,6 +80,7 @@ async function summarize(organizationId: string, projectId?: string) {
       openCount: Number(row?.open ?? 0),
       lastReportAt: row?.last ? row.last.toISOString() : null,
       shareToken: key.shareToken ?? null,
+      widgetColor: key.widgetColor ?? null,
     }
   })
 
@@ -135,3 +140,29 @@ export const disableProjectShareLink = protectedProcedure
       .where(eq(capturePublicKey.id, input.projectId))
     return { ok: true }
   })
+
+// Sets the colour of the widget's "Report issue" tab on this project's sites (null = default).
+// Sites pick it up within about a minute (the site check is cached briefly).
+export const setProjectWidgetColor = protectedProcedure
+  .input(
+    z.object({
+      projectId: z.string().min(1),
+      color: z
+        .string()
+        .trim()
+        .toLowerCase()
+        .regex(WIDGET_COLOR_PATTERN, "Use a hex colour like #ff6b35")
+        .nullable(),
+    })
+  )
+  .handler(
+    async ({ context, input }): Promise<{ widgetColor: string | null }> => {
+      const organizationId = requireActiveOrgId(context.session)
+      await requireProject(input.projectId, organizationId)
+      await db
+        .update(capturePublicKey)
+        .set({ widgetColor: input.color })
+        .where(eq(capturePublicKey.id, input.projectId))
+      return { widgetColor: input.color }
+    }
+  )

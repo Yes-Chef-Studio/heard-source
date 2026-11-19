@@ -50,20 +50,17 @@ export async function handleRenderSnapshot(input: {
       })
     }
 
-    const rendererResponse = await fetch(
-      new URL("/render", env.RENDERER_URL),
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          ...(env.RENDERER_SECRET
-            ? { "x-renderer-secret": env.RENDERER_SECRET }
-            : undefined),
-        },
-        body,
-        signal: AbortSignal.timeout(RENDERER_TIMEOUT_MS),
-      }
-    )
+    const rendererResponse = await fetch(new URL("/render", env.RENDERER_URL), {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(env.RENDERER_SECRET
+          ? { "x-renderer-secret": env.RENDERER_SECRET }
+          : undefined),
+      },
+      body,
+      signal: AbortSignal.timeout(RENDERER_TIMEOUT_MS),
+    })
 
     if (!rendererResponse.ok) {
       const detail = await rendererResponse.text().catch(() => "")
@@ -86,7 +83,8 @@ export async function handleRenderSnapshot(input: {
         ...authorization.rateLimitHeaders,
         "content-type": "image/png",
         "cache-control": "no-store",
-        "x-render-engine": rendererResponse.headers.get("x-render-engine") ?? "",
+        "x-render-engine":
+          rendererResponse.headers.get("x-render-engine") ?? "",
         "x-render-ms": rendererResponse.headers.get("x-render-ms") ?? "",
       },
     })

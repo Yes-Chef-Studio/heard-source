@@ -167,6 +167,15 @@ function validate(body) {
 const server = createServer(async (req, res) => {
   try {
     if (req.method === "GET" && req.url === "/health") return send(res, 200, { ok: true, active, queued: queue.length });
+    if (req.method === "POST" && req.url === "/warmup") {
+      // Heard: the widget asks for this when someone shows interest (page load, hovering the tab),
+      // so the container is awake and the browser engine launched before they take a screenshot.
+      if (!authorized(req)) return send(res, 401, { error: "Unauthorized" });
+      const body = await readJson(req).catch(() => ({}));
+      const engine = engineForUserAgent(typeof body?.userAgent === "string" ? body.userAgent : "");
+      await getBrowser(engine).catch(() => {});
+      return send(res, 200, { ok: true, engine });
+    }
     if (req.method !== "POST" || req.url !== "/render") return send(res, 404, { error: "Not found" });
     if (!authorized(req)) return send(res, 401, { error: "Unauthorized" });
 
@@ -189,7 +198,11 @@ const server = createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, HOST, () => console.log(`Renderer listening on http://${HOST}:${PORT}`));
+server.listen(PORT, HOST, () => {
+  console.log(`Renderer listening on http://${HOST}:${PORT}`);
+  // Most reviewers use Chromium browsers; start it now rather than on the first screenshot.
+  getBrowser("chromium").catch((error) => console.error("chromium prelaunch failed", error));
+});
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, async () => {

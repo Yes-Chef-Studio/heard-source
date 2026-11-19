@@ -243,74 +243,90 @@ export function ScreenshotAnnotationEditor(props: {
 
   return (
     <div className="grid min-h-full grid-rows-[auto_1fr]">
-      <div className="flex flex-wrap items-center gap-2 px-0 py-0 pb-4">
-        <ToolButton
-          active={tool === "draw"}
-          disabled={props.disabled}
-          icon={<DrawIcon className="h-4 w-4" />}
-          label="Draw"
-          onClick={() => {
-            setTool("draw")
-          }}
-        />
-        <ToolButton
-          active={tool === "highlight"}
-          disabled={props.disabled}
-          icon={<HighlightIcon className="h-4 w-4" />}
-          label="Highlight"
-          onClick={() => {
-            setTool("highlight")
-          }}
-        />
-        <ToolButton
-          active={tool === "rectangle"}
-          disabled={props.disabled}
-          icon={<RectangleIcon className="h-4 w-4" />}
-          label="Rectangle"
-          onClick={() => {
-            setTool("rectangle")
-          }}
-        />
-        <div className="flex items-center gap-2">
-          {screenshotAnnotationColorOptions.map((option) => (
-            <ColorButton
-              active={color === option.value}
-              color={option.value}
+      <div className="grid gap-2 pb-4">
+        <p className="m-0 text-muted-foreground text-sm">
+          Draw on the screenshot to show us where the issue is.
+        </p>
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-card p-1.5 shadow-sm">
+          <div
+            aria-label="Markup tools"
+            className="flex flex-wrap items-center gap-1"
+            role="toolbar"
+          >
+            <ToolButton
+              active={tool === "draw"}
               disabled={props.disabled}
-              key={option.value}
-              label={option.label}
+              icon={<DrawIcon className="h-4 w-4" />}
+              label="Draw"
               onClick={() => {
-                setColor(option.value)
+                setTool("draw")
               }}
             />
-          ))}
-        </div>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <Button
-            className="gap-2"
-            disabled={props.disabled || !hasAnnotations}
-            onClick={() => {
-              props.onChange(props.annotations.slice(0, -1))
-            }}
-            size="icon"
-            type="button"
-            variant="outline"
-          >
-            <UndoIcon className="h-4 w-4" />
-          </Button>
-          <Button
-            className="gap-2"
-            disabled={props.disabled || !hasAnnotations}
-            onClick={() => {
-              props.onChange([])
-              setDraftAnnotation(null)
-            }}
-            size="icon"
-            type="button"
-            variant="outline"
-          >
-            <ResetIcon className="h-4 w-4" />
-          </Button>
+            <ToolButton
+              active={tool === "highlight"}
+              disabled={props.disabled}
+              icon={<HighlightIcon className="h-4 w-4" />}
+              label="Highlight"
+              onClick={() => {
+                setTool("highlight")
+              }}
+            />
+            <ToolButton
+              active={tool === "rectangle"}
+              disabled={props.disabled}
+              icon={<RectangleIcon className="h-4 w-4" />}
+              label="Rectangle"
+              onClick={() => {
+                setTool("rectangle")
+              }}
+            />
+          </div>
+          <div className="h-6 w-px bg-border" />
+          <div className="flex items-center gap-2">
+            {screenshotAnnotationColorOptions.map((option) => (
+              <ColorButton
+                active={color === option.value}
+                color={option.value}
+                disabled={props.disabled}
+                key={option.value}
+                label={option.label}
+                onClick={() => {
+                  setColor(option.value)
+                }}
+              />
+            ))}
+          </div>
+          <div className="ml-auto flex flex-wrap items-center gap-1">
+            <Button
+              aria-label="Undo"
+              className="gap-2 border-0"
+              disabled={props.disabled || !hasAnnotations}
+              onClick={() => {
+                props.onChange(props.annotations.slice(0, -1))
+              }}
+              size="icon"
+              title="Undo"
+              type="button"
+              variant="outline"
+            >
+              <UndoIcon className="h-4 w-4" />
+            </Button>
+            <Button
+              aria-label="Clear all markup"
+              className="gap-2 border-0"
+              disabled={props.disabled || !hasAnnotations}
+              onClick={() => {
+                props.onChange([])
+                setDraftAnnotation(null)
+              }}
+              size="icon"
+              title="Clear all"
+              type="button"
+              variant="outline"
+            >
+              <ResetIcon className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -358,20 +374,21 @@ function ToolButton(props: {
   onClick: () => void
 }): React.JSX.Element {
   return (
-    <Button
+    <button
+      aria-pressed={props.active}
       className={cn(
-        "gap-2",
-        props.active ? "border-transparent bg-foreground text-background" : null
+        "inline-flex h-9 items-center gap-2 rounded-lg px-3 font-medium text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-not-allowed disabled:opacity-50",
+        props.active
+          ? "bg-foreground text-background shadow-sm"
+          : "text-foreground hover:bg-muted"
       )}
       disabled={props.disabled}
       onClick={props.onClick}
-      size="sm"
       type="button"
-      variant={props.active ? "secondary" : "outline"}
     >
-      <span className="text-sm">{props.icon}</span>
+      {props.icon}
       <span>{props.label}</span>
-    </Button>
+    </button>
   )
 }
 
@@ -385,9 +402,12 @@ function ColorButton(props: {
   return (
     <button
       aria-label={props.label}
+      aria-pressed={props.active}
       className={cn(
-        "h-5 w-5 rounded-full border transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-        props.active ? "scale-110 border-foreground" : "border-border"
+        "h-6 w-6 rounded-full border-2 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+        props.active
+          ? "scale-110 border-background ring-2 ring-foreground"
+          : "border-transparent"
       )}
       disabled={props.disabled}
       onClick={props.onClick}

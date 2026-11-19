@@ -26,6 +26,7 @@ export interface CapturePublicKeyRecord {
   rotatedAt: Date | null
   status: CapturePublicKeyStatus
   updatedAt: Date
+  widgetColor: string | null
 }
 
 type EnsureCapturePublicKeyForSiteInput = {
@@ -132,6 +133,7 @@ function toCapturePublicKeyRecord(
     rotatedAt: record.rotatedAt,
     status: record.status as CapturePublicKeyStatus,
     updatedAt: record.updatedAt,
+    widgetColor: record.widgetColor ?? null,
   }
 }
 

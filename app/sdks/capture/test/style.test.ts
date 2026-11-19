@@ -10,17 +10,19 @@ const widgetCssPath = fileURLToPath(
 )
 
 const sharedLauncherRules = [
-  "gap: 6px;",
-  "padding: 0 14px;",
-  "border: 1px solid transparent;",
-  "border-radius: 8px;",
+  "right: 0;",
+  "top: 50%;",
+  "writing-mode: vertical-rl;",
+  "transform: translateY(-50%) rotate(180deg);",
+  "border-radius: 0 10px 10px 0;",
+  "background: var(--heard-launcher-bg, var(--primary));",
+  "color: var(--heard-launcher-fg, var(--primary-foreground));",
   "font-size: 14px;",
-  "font-weight: 500;",
+  "font-weight: 600;",
   "white-space: nowrap;",
-  "box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);",
-  "transform: translateY(-1px);",
+  "padding-left: 14px;",
   "outline: 2px solid var(--ring);",
-  "opacity: 0.5;",
+  "opacity: 0.6;",
 ] as const
 
 const readCss = (path: string): string => readFileSync(path, "utf8")
@@ -47,7 +49,9 @@ describe("capture SDK styles", () => {
     expect(launcherCss).toContain("@media (prefers-color-scheme: dark)")
     expect(launcherCss).toContain("--primary:")
     expect(launcherCss).toContain('--font-sans: "Inter Variable", sans-serif;')
-    expect(launcherCss).toContain("background: var(--primary);")
+    expect(launcherCss).toContain(
+      "background: var(--heard-launcher-bg, var(--primary));"
+    )
     expect(launcherCss).not.toContain(":root {")
   })
 
@@ -59,5 +63,16 @@ describe("capture SDK styles", () => {
       expect(launcherCss).toContain(rule)
       expect(widgetCss).toContain(rule)
     }
+  })
+})
+
+describe("launcher colour", () => {
+  it("picks readable text for light and dark tab colours", async () => {
+    const { readableTextOn } = await import("../src/ui/launcher-color")
+    expect(readableTextOn("#111111")).toBe("#ffffff")
+    expect(readableTextOn("#2563eb")).toBe("#ffffff")
+    expect(readableTextOn("#ea580c")).toBe("#ffffff")
+    expect(readableTextOn("#ffffff")).toBe("#111111")
+    expect(readableTextOn("#facc15")).toBe("#111111")
   })
 })

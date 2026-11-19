@@ -21,6 +21,7 @@ export function CaptureWidgetView(props: {
     return (
       <ChooserSection
         busy={props.isBusy}
+        capturingScreenshot={props.state.capturingScreenshot}
         onStartVideo={props.handlers.onStartVideo}
         onTakeScreenshot={props.handlers.onTakeScreenshot}
       />

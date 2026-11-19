@@ -1,16 +1,9 @@
 import type { CaptureUiHandlers, CaptureUiState } from "../types"
 import { CaptureWidgetView } from "./capture-widget-view"
 import { CaptureLauncherButton } from "./components/capture-launcher-button"
-import { Button } from "./components/primitives/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "./components/primitives/card"
+import { CloseIcon } from "./components/icons"
+import { Card, CardContent } from "./components/primitives/card"
 import { RecordingDock } from "./sections/recording-dock"
-import { getViewDescription } from "./utils/get-view-description"
 
 export function CaptureWidgetShell(props: {
   zIndex: number
@@ -24,11 +17,13 @@ export function CaptureWidgetShell(props: {
 
   return (
     <div className="heard-capture-root">
-      <CaptureLauncherButton
-        disabled={isBusy}
-        onClick={props.handlers.onLauncherClick}
-        zIndex={props.zIndex}
-      />
+      {props.state.recordingDockOpen ? null : (
+        <CaptureLauncherButton
+          disabled={isBusy}
+          onClick={props.handlers.onLauncherClick}
+          zIndex={props.zIndex}
+        />
+      )}
 
       {props.state.overlayOpen ? (
         <div
@@ -38,29 +33,24 @@ export function CaptureWidgetShell(props: {
           }}
         >
           <Card
+            aria-label="Report an issue"
+            aria-modal="true"
             className={
               isReviewView
-                ? "m-auto flex h-[min(820px,calc(100dvh-2rem))] w-full max-w-[1120px] flex-col overflow-hidden border-border/80 bg-card text-card-foreground shadow-2xl"
-                : "m-auto flex max-h-[calc(100dvh-2rem)] w-full max-w-[560px] flex-col overflow-hidden border-border/80 bg-card text-card-foreground shadow-2xl"
+                ? "relative m-auto flex h-[min(820px,calc(100dvh-2rem))] w-full max-w-[1120px] flex-col overflow-hidden border-border/80 bg-card text-card-foreground shadow-2xl"
+                : "relative m-auto flex max-h-[calc(100dvh-2rem)] w-full max-w-[480px] flex-col overflow-hidden border-border/80 bg-card text-card-foreground shadow-2xl"
             }
             role="dialog"
           >
-            <CardHeader className="flex flex-row items-start justify-between gap-3 border-b">
-              <div className="grid gap-1">
-                <CardTitle>Leave feedback</CardTitle>
-                <CardDescription>
-                  {getViewDescription(props.state.view)}
-                </CardDescription>
-              </div>
-              <Button
-                disabled={isBusy}
-                onClick={props.handlers.onClose}
-                type="button"
-                variant="outline"
-              >
-                Close
-              </Button>
-            </CardHeader>
+            <button
+              aria-label="Close"
+              className="absolute top-3 right-3 z-10 grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:opacity-50"
+              disabled={isBusy}
+              onClick={props.handlers.onClose}
+              type="button"
+            >
+              <CloseIcon className="h-4 w-4" />
+            </button>
 
             {props.state.errorMessage ? (
               <p

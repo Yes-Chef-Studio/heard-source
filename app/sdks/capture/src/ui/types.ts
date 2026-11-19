@@ -13,6 +13,8 @@ export interface CaptureUiState {
   overlayOpen: boolean
   recordingDockOpen: boolean
   busy: boolean
+  // Heard: the page has been copied and the server is rendering the screenshot.
+  capturingScreenshot: boolean
   errorMessage: string | null
   recordingStartedAt: number | null
   warnings: string[]
@@ -67,6 +69,7 @@ export interface CaptureUiStore {
   showSuccess: (shareUrl?: string) => void
   showError: (message: string) => void
   setTitleIfEmpty: (value: string) => void
+  setCapturingScreenshot: (capturing: boolean) => void
   destroy: () => void
 }
 

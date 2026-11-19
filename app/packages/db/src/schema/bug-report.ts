@@ -238,6 +238,8 @@ export const capturePublicKey = pgTable(
     status: text("status").default("active").notNull(),
     // A capture key is a project. This is the secret in its client share link; null = no link.
     shareToken: text("share_token").unique(),
+    // The widget's "Report issue" tab colour on this project's sites, as #rrggbb. Null = default.
+    widgetColor: text("widget_color"),
     createdBy: text("created_by").references(() => user.id, {
       onDelete: "set null",
     }),

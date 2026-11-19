@@ -101,3 +101,23 @@ export function ExternalLinkIcon(
     </SvgIcon>
   )
 }
+
+export function CloseIcon(
+  props: React.SVGProps<SVGSVGElement>
+): React.JSX.Element {
+  return (
+    <svg
+      aria-hidden="true"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+      {...props}
+    >
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </svg>
+  )
+}

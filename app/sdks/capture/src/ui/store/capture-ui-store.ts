@@ -46,6 +46,7 @@ export function createCaptureUiStore(): CaptureUiStore {
       view: "review",
       errorMessage: null,
       busy: false,
+      capturingScreenshot: false,
       media: input.media,
       warnings: [...input.warnings],
       summary: input.summary,
@@ -80,6 +81,7 @@ export function createCaptureUiStore(): CaptureUiStore {
         view: "chooser",
         errorMessage: null,
         busy: false,
+        capturingScreenshot: false,
       })
     },
     close: () => {
@@ -88,6 +90,7 @@ export function createCaptureUiStore(): CaptureUiStore {
         recordingDockOpen: false,
         recordingStartedAt: null,
         busy: false,
+        capturingScreenshot: false,
         errorMessage: null,
       })
     },
@@ -99,6 +102,7 @@ export function createCaptureUiStore(): CaptureUiStore {
         view: "recording",
         errorMessage: null,
         busy: false,
+        capturingScreenshot: false,
       })
     },
     showReview,
@@ -110,14 +114,19 @@ export function createCaptureUiStore(): CaptureUiStore {
         view: "success",
         errorMessage: null,
         busy: false,
+        capturingScreenshot: false,
         shareUrl: shareUrl ?? "",
         copyLabel: "Copy Link",
       })
     },
     showError: (message) => {
       patchState({
+        capturingScreenshot: false,
         errorMessage: message,
       })
+    },
+    setCapturingScreenshot: (capturing) => {
+      patchState({ capturingScreenshot: capturing })
     },
     setTitleIfEmpty: (value) => {
       if (state.reviewDraft.title.trim().length > 0) {
@@ -144,6 +153,7 @@ function createInitialState(): CaptureUiState {
     overlayOpen: false,
     recordingDockOpen: false,
     busy: false,
+    capturingScreenshot: false,
     errorMessage: null,
     recordingStartedAt: null,
     warnings: [],

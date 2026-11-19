@@ -96,9 +96,13 @@ async function takeSnapshot(): Promise<SerializedNode> {
 }
 
 export async function captureSnapshotScreenshot(
-  config: CaptureRuntimeConfig
+  config: CaptureRuntimeConfig,
+  // Called once the page has been copied (a fraction of a second), before the server render.
+  // The widget can show itself again from here: it's no longer in the picture.
+  onPageCopied?: () => void
 ): Promise<Blob> {
   const serialized = await takeSnapshot()
+  onPageCopied?.()
   const response = await fetch(`${config.host}${RENDER_PATH}`, {
     method: "POST",
     headers: {

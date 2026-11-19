@@ -6,7 +6,7 @@ Live at **https://heard.yeschef-dev.fyi**.
 |---|---|
 | Worker `heard` | Routes the domain to the containers (`src/index.ts`) |
 | App container (`basic`) | API on port 3000 + dashboard on 3001 (`app.Dockerfile`, `start.sh`) |
-| Renderer container (`standard-1`) | Playwright screenshots; only the API can reach it, at `http://renderer.internal` |
+| Renderer container (`standard-2`, one instance) | Playwright screenshots; only the API can reach it, at `http://renderer.internal` |
 | Database | Neon Postgres, AWS us-east-1 |
 | Files | R2 bucket `heard` (Eastern North America) |
 

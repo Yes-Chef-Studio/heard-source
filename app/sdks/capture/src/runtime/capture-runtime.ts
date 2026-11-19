@@ -22,7 +22,7 @@ import {
   normalizeSubmitPath,
   normalizeZIndex,
 } from "../utils"
-import { isSiteAllowed } from "./site-check"
+import { getSiteColor, isSiteAllowed, warmRenderer } from "./site-check"
 
 export class CaptureSdkRuntime implements CaptureRuntimeController {
   private runtimeConfig: CaptureRuntimeConfig | null = null
@@ -84,32 +84,37 @@ export class CaptureSdkRuntime implements CaptureRuntimeController {
     }
 
     const mountTarget = target ?? document.body
-    this.mountedUi = mountCaptureUi(mountTarget, config.zIndex, {
-      onClose: () => {
-        this.close()
+    this.mountedUi = mountCaptureUi(
+      mountTarget,
+      config.zIndex,
+      {
+        onClose: () => {
+          this.close()
+        },
+        onStartVideo: () => {
+          return this.startRecording()
+        },
+        onTakeScreenshot: async () => {
+          const blob = await this.takeScreenshot()
+          if (!blob) {
+            throw new Error("Screenshot capture failed.")
+          }
+        },
+        onStopRecording: async () => {
+          const blob = await this.stopRecording()
+          if (!blob) {
+            throw new Error("Recording capture failed.")
+          }
+        },
+        onSubmit: (draft, options) => {
+          return this.submit(draft, options).then(() => undefined)
+        },
+        onReset: () => {
+          this.reset()
+        },
       },
-      onStartVideo: () => {
-        return this.startRecording()
-      },
-      onTakeScreenshot: async () => {
-        const blob = await this.takeScreenshot()
-        if (!blob) {
-          throw new Error("Screenshot capture failed.")
-        }
-      },
-      onStopRecording: async () => {
-        const blob = await this.stopRecording()
-        if (!blob) {
-          throw new Error("Recording capture failed.")
-        }
-      },
-      onSubmit: (draft, options) => {
-        return this.submit(draft, options).then(() => undefined)
-      },
-      onReset: () => {
-        this.reset()
-      },
-    })
+      getSiteColor(config)
+    )
     this.mountedTarget = mountTarget
   }
 
@@ -124,6 +129,7 @@ export class CaptureSdkRuntime implements CaptureRuntimeController {
 
   open(): void {
     const config = this.getRuntimeConfig()
+    warmRenderer(config)
     this.whenSiteAllowed(config, () => {
       if (!this.mountedTarget) {
         this.mount()
@@ -154,6 +160,9 @@ export class CaptureSdkRuntime implements CaptureRuntimeController {
     try {
       await this.hideUiForCapture()
       const controller = await startDisplayRecording()
+      // Heard: bring the widget back once sharing has started, so the "Stop recording" bar is
+      // visible on the page (the browser's own "Stop sharing" button is easy to miss).
+      this.setUiHidden(false)
       this.debuggerCollector.markRecordingStarted(controller.startedAt)
       this.activeRecording = controller
       controller.finished
@@ -210,7 +219,12 @@ export class CaptureSdkRuntime implements CaptureRuntimeController {
       // Heard: DOM snapshot rendered server-side first (no permission prompt); screen-share only
       // if the renderer is unavailable.
       try {
-        blob = await captureSnapshotScreenshot(config)
+        // Heard: show the widget again (with "Taking screenshot…") as soon as the page is copied,
+        // rather than leaving the screen blank while the server renders it.
+        blob = await captureSnapshotScreenshot(config, () => {
+          this.setUiHidden(false)
+          this.mountedUi?.store.setCapturingScreenshot(true)
+        })
       } catch (snapshotError) {
         console.warn(
           "[heard] snapshot screenshot failed, falling back to screen capture",
@@ -321,7 +335,6 @@ export class CaptureSdkRuntime implements CaptureRuntimeController {
       warnings: review.warnings,
       summary: review.debuggerSummary,
     })
-    this.prefillTitle()
   }
 
   private abortActiveRecording(): void {
@@ -340,15 +353,6 @@ export class CaptureSdkRuntime implements CaptureRuntimeController {
 
   private setUiHidden(hidden: boolean): void {
     this.mountedUi?.setHidden(hidden)
-  }
-
-  private prefillTitle(): void {
-    const captureTitle = document.title.trim()
-    if (captureTitle.length === 0) {
-      return
-    }
-
-    this.mountedUi?.store.setTitleIfEmpty(captureTitle)
   }
 
   private getRuntimeConfig(): CaptureRuntimeConfig {

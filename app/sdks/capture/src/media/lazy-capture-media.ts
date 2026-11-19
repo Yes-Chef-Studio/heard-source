@@ -6,10 +6,11 @@ export async function captureScreenshot(): Promise<Blob> {
 }
 
 export async function captureSnapshotScreenshot(
-  config: CaptureRuntimeConfig
+  config: CaptureRuntimeConfig,
+  onPageCopied?: () => void
 ): Promise<Blob> {
   const mediaModule = await import("./capture-snapshot")
-  return mediaModule.captureSnapshotScreenshot(config)
+  return mediaModule.captureSnapshotScreenshot(config, onPageCopied)
 }
 
 export async function startDisplayRecording(): Promise<RecordingController> {
