@@ -4,6 +4,7 @@ import {
   getCaptureSdk,
   sdkTestState,
   setupCaptureSdkTestHooks,
+  waitFor,
 } from "./lib/sdk-test-harness"
 
 setupCaptureSdkTestHooks()
@@ -21,6 +22,7 @@ describe("capture SDK submit failure regression", () => {
       },
     })
 
+    await waitFor(() => sdkTestState.launcherMounts.length === 1)
     await capture.takeScreenshot()
 
     await expect(

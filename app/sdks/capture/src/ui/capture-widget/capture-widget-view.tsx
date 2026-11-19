@@ -1,15 +1,8 @@
-import { lazy, Suspense } from "react"
+import { Suspense } from "react"
 import type { CaptureUiHandlers, CaptureUiState } from "../types"
+import { getReviewFormSection } from "./review-form-loader"
 import { ChooserSection } from "./sections/chooser-section"
 import { SuccessSection } from "./sections/success-section"
-
-const LazyReviewFormSection = lazy(async () => {
-  const module = await import("./sections/review-form-section")
-
-  return {
-    default: module.ReviewFormSection,
-  }
-})
 
 export function CaptureWidgetView(props: {
   handlers: CaptureUiHandlers
@@ -21,7 +14,6 @@ export function CaptureWidgetView(props: {
     return (
       <ChooserSection
         busy={props.isBusy}
-        capturingScreenshot={props.state.capturingScreenshot}
         onStartVideo={props.handlers.onStartVideo}
         onTakeScreenshot={props.handlers.onTakeScreenshot}
       />
@@ -29,12 +21,16 @@ export function CaptureWidgetView(props: {
   }
 
   if (props.state.view === "review") {
+    // Already loaded by the time it is needed (see review-form-loader.ts); the Suspense fallback
+    // is only for the rare case that it isn't.
+    const ReviewFormSection = getReviewFormSection()
     return (
       <Suspense fallback={<ReviewSectionFallback />}>
-        <LazyReviewFormSection
+        <ReviewFormSection
           formKey={props.state.reviewFormKey}
           isSubmitting={props.isSubmitPending}
           onCancel={props.handlers.onCancel}
+          onRetakeScreenshot={props.handlers.onTakeScreenshot}
           onSubmit={props.handlers.onSubmit}
           state={props.state}
         />
@@ -53,7 +49,6 @@ function ReviewSectionFallback(): React.JSX.Element {
   return (
     <section className="grid gap-2 px-5 py-8 text-muted-foreground text-sm">
       <p>Preparing review form...</p>
-      <p className="text-xs">Your capture is ready. Loading report details.</p>
     </section>
   )
 }

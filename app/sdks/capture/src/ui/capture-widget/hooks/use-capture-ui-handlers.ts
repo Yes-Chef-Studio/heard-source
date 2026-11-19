@@ -63,8 +63,13 @@ export function useCaptureUiHandlers(
     isSubmitPending,
     handlers: {
       onLauncherClick: () => {
-        input.callbacks.onReset()
-        input.store.openChooser()
+        input.callbacks.onOpenChooser("launcher")
+      },
+      onLauncherIntent: () => {
+        input.callbacks.onLauncherIntent()
+      },
+      onLauncherPress: () => {
+        input.callbacks.onLauncherPress()
       },
       onClose: () => {
         input.callbacks.onClose()
@@ -80,13 +85,10 @@ export function useCaptureUiHandlers(
         })
       },
       onTakeScreenshot: () => {
-        startBusyTask(async () => {
-          try {
-            await input.callbacks.onTakeScreenshot()
-          } catch (error) {
-            showCaptureError(error)
-          }
-        })
+        // Not a busy task: the review screen opens at once and its form is usable while the
+        // picture is on its way. If no picture can be made, the review screen says so itself.
+        input.store.patchState({ errorMessage: null })
+        input.callbacks.onTakeScreenshot().catch(() => undefined)
       },
       onStopRecording: () => {
         startBusyTask(async () => {
@@ -120,12 +122,10 @@ export function useCaptureUiHandlers(
           })
       },
       onCancel: () => {
-        input.callbacks.onReset()
-        input.store.openChooser()
+        input.callbacks.onOpenChooser("restart")
       },
       onRetry: () => {
-        input.callbacks.onReset()
-        input.store.openChooser()
+        input.callbacks.onOpenChooser("restart")
       },
       onCopyLink: () => {
         if (!input.shareUrl.trim()) {

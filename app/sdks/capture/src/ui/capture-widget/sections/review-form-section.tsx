@@ -22,10 +22,45 @@ interface ReviewFormSectionProps {
   isSubmitting: boolean
   state: CaptureUiState
   onCancel: () => void
+  // Tries the screenshot again after it failed, keeping what's in the form.
+  onRetakeScreenshot: () => void
   onSubmit: (
     draft: CaptureSubmissionDraft,
     options?: CaptureReviewSubmitOptions
   ) => Promise<void>
+}
+
+// The left-hand side: the screenshot to mark up (or the placeholder while it is on its way), or
+// the recorded video.
+function ReviewMedia(props: {
+  annotations: ScreenshotAnnotation[]
+  disabled: boolean
+  onAnnotationsChange: (annotations: ScreenshotAnnotation[]) => void
+  onRetakeScreenshot: () => void
+  state: CaptureUiState
+}): React.JSX.Element {
+  const { media, screenshotStatus } = props.state
+  if (media?.captureType === "screenshot" || screenshotStatus !== "idle") {
+    return (
+      <ScreenshotAnnotationEditor
+        annotations={props.annotations}
+        disabled={props.disabled}
+        onChange={props.onAnnotationsChange}
+        onRetry={props.onRetakeScreenshot}
+        placeholderAspectRatio={props.state.screenshotAspectRatio}
+        src={media?.objectUrl ?? null}
+        status={media ? "idle" : screenshotStatus}
+      />
+    )
+  }
+
+  return (
+    <div className="flex min-h-full items-center justify-center">
+      <div className="aspect-video w-full overflow-hidden rounded-xl border border-border/70 bg-black">
+        <MediaPreview media={media} />
+      </div>
+    </div>
+  )
 }
 
 export function ReviewFormSection({
@@ -33,6 +68,7 @@ export function ReviewFormSection({
   isSubmitting,
   state,
   onCancel,
+  onRetakeScreenshot,
   onSubmit,
 }: ReviewFormSectionProps): React.JSX.Element {
   const [annotations, setAnnotations] = useState<ScreenshotAnnotation[]>([])
@@ -65,6 +101,7 @@ export function ReviewFormSection({
         const screenshotBlobOverride = await createAnnotatedScreenshotBlob({
           annotations,
           imageUrl: state.media.objectUrl,
+          sourceType: state.media.blob.type,
         })
 
         submitOptions = screenshotBlobOverride
@@ -87,20 +124,13 @@ export function ReviewFormSection({
     >
       <div className="flex min-h-[320px] min-w-0 flex-col border-b bg-muted/20 lg:border-r lg:border-b-0">
         <div className="min-h-0 flex-1 overflow-auto p-5">
-          {state.media?.captureType === "screenshot" ? (
-            <ScreenshotAnnotationEditor
-              annotations={annotations}
-              disabled={state.busy || isSubmitting}
-              onChange={setAnnotations}
-              src={state.media.objectUrl}
-            />
-          ) : (
-            <div className="flex min-h-full items-center justify-center">
-              <div className="aspect-video w-full overflow-hidden rounded-xl border border-border/70 bg-black">
-                <MediaPreview media={state.media} />
-              </div>
-            </div>
-          )}
+          <ReviewMedia
+            annotations={annotations}
+            disabled={state.busy || isSubmitting}
+            onAnnotationsChange={setAnnotations}
+            onRetakeScreenshot={onRetakeScreenshot}
+            state={state}
+          />
         </div>
       </div>
 

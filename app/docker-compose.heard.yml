@@ -86,6 +86,8 @@ services:
     restart: unless-stopped
     environment:
       RENDERER_SECRET: ${RENDERER_SECRET:?set RENDERER_SECRET}
+      # 1 = render on the reviewer's own engine (WebKit/Firefox); default Chromium for all.
+      RENDERER_MATCH_ENGINE: ${RENDERER_MATCH_ENGINE:-0}
     networks: [render]
     # Chromium needs more than Docker's default 64 MB of shared memory.
     shm_size: 1gb

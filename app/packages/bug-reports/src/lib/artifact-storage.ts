@@ -14,10 +14,13 @@ export function buildCaptureArtifactKey(input: {
   organizationId: string
   bugReportId: string
   captureType: "video" | "screenshot"
+  // Heard: screenshots arrive as JPEG (the snapshot renderer's format), PNG or WebP; the key's
+  // extension follows the type so a downloaded file opens correctly.
+  contentType?: string
 }): string {
   return (
     buildBugReportArtifactBasePath(input) +
-    getCaptureFilename(input.captureType)
+    getCaptureFilename(input.captureType, input.contentType)
   )
 }
 
@@ -51,6 +54,20 @@ function buildBugReportBasePath(input: {
   return `organizations/${input.organizationId}/bug-reports/${input.bugReportId}`
 }
 
-function getCaptureFilename(captureType: "video" | "screenshot"): string {
-  return captureType === "video" ? "video.webm" : "screenshot.png"
+const SCREENSHOT_EXTENSIONS: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+}
+
+function getCaptureFilename(
+  captureType: "video" | "screenshot",
+  contentType?: string
+): string {
+  if (captureType === "video") {
+    return "video.webm"
+  }
+
+  const extension = SCREENSHOT_EXTENSIONS[contentType ?? ""] ?? "png"
+  return `screenshot.${extension}`
 }

@@ -33,9 +33,24 @@ export type ScreenshotAnnotation =
   | ScreenshotStrokeAnnotation
   | ScreenshotRectangleAnnotation
 
+const JPEG_EXPORT_QUALITY = 0.9
+
+// A marked-up screenshot is saved in the format the screenshot came in: a JPEG re-saved as PNG
+// would be several times the size for no gain in quality.
+export function annotatedExportFormat(sourceType: string | undefined): {
+  type: "image/jpeg" | "image/png"
+  quality?: number
+} {
+  return sourceType === "image/jpeg" || sourceType === "image/jpg"
+    ? { type: "image/jpeg", quality: JPEG_EXPORT_QUALITY }
+    : { type: "image/png" }
+}
+
 export async function createAnnotatedScreenshotBlob(input: {
   annotations: ScreenshotAnnotation[]
   imageUrl: string
+  // MIME type of the screenshot being marked up.
+  sourceType?: string
 }): Promise<Blob | null> {
   if (input.annotations.length === 0) {
     return null
@@ -59,15 +74,20 @@ export async function createAnnotatedScreenshotBlob(input: {
     width: canvas.width,
   })
 
+  const format = annotatedExportFormat(input.sourceType)
   return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        reject(new Error("Failed to export annotated screenshot."))
-        return
-      }
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          reject(new Error("Failed to export annotated screenshot."))
+          return
+        }
 
-      resolve(blob)
-    }, "image/png")
+        resolve(blob)
+      },
+      format.type,
+      format.quality
+    )
   })
 }
 
@@ -200,6 +220,21 @@ function loadImage(source: string): Promise<HTMLImageElement> {
     }
     image.src = source
   })
+}
+
+// Loads and fully decodes a screenshot before it is shown, so that drawing it for the first time
+// doesn't stall the page (a browser otherwise decodes on first paint, on the main thread).
+export async function loadDecodedImage(
+  source: string
+): Promise<HTMLImageElement> {
+  const image = new Image()
+  image.decoding = "async"
+  image.src = source
+  if (typeof image.decode === "function") {
+    await image.decode()
+    return image
+  }
+  return loadImage(source)
 }
 
 function withAlpha(color: ScreenshotAnnotationColor, alpha: number): string {

@@ -11,6 +11,8 @@ interface MountCaptureLauncherOptions {
   color: string | null
   onOpen: () => void
   onPrefetch: () => void
+  // The mouse button has gone down on the launcher: a click is all but certain.
+  onPress?: () => void
 }
 
 const CAPTURE_LAUNCHER_CSS_PLACEHOLDER = "__CRIKKET_CAPTURE_LAUNCHER_CSS__"
@@ -43,6 +45,11 @@ export function mountCaptureLauncher(
   button.setAttribute("aria-label", "Report an issue")
 
   button.addEventListener("click", options.onOpen)
+  // Mouse only: a finger going down may be the start of a scroll.
+  const onPointerDown = (event: PointerEvent) => {
+    if (event.button === 0 && event.pointerType === "mouse") options.onPress?.()
+  }
+  button.addEventListener("pointerdown", onPointerDown, { passive: true })
   button.addEventListener("pointerenter", options.onPrefetch, {
     once: true,
     passive: true,

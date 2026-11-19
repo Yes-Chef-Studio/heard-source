@@ -18,6 +18,7 @@ const DEFAULT_SUMMARY: CaptureDebuggerSummary = {
 export function createCaptureUiStore(): CaptureUiStore {
   let state = createInitialState()
   const listeners = new Set<() => void>()
+  let pendingReviewCount = 0
 
   const notify = () => {
     for (const listener of listeners) {
@@ -46,7 +47,8 @@ export function createCaptureUiStore(): CaptureUiStore {
       view: "review",
       errorMessage: null,
       busy: false,
-      capturingScreenshot: false,
+      screenshotStatus: "idle",
+      screenshotAspectRatio: null,
       media: input.media,
       warnings: [...input.warnings],
       summary: input.summary,
@@ -81,7 +83,7 @@ export function createCaptureUiStore(): CaptureUiStore {
         view: "chooser",
         errorMessage: null,
         busy: false,
-        capturingScreenshot: false,
+        screenshotStatus: "idle",
       })
     },
     close: () => {
@@ -90,7 +92,7 @@ export function createCaptureUiStore(): CaptureUiStore {
         recordingDockOpen: false,
         recordingStartedAt: null,
         busy: false,
-        capturingScreenshot: false,
+        screenshotStatus: "idle",
         errorMessage: null,
       })
     },
@@ -102,7 +104,7 @@ export function createCaptureUiStore(): CaptureUiStore {
         view: "recording",
         errorMessage: null,
         busy: false,
-        capturingScreenshot: false,
+        screenshotStatus: "idle",
       })
     },
     showReview,
@@ -114,19 +116,83 @@ export function createCaptureUiStore(): CaptureUiStore {
         view: "success",
         errorMessage: null,
         busy: false,
-        capturingScreenshot: false,
+        screenshotStatus: "idle",
         shareUrl: shareUrl ?? "",
         copyLabel: "Copy Link",
       })
     },
     showError: (message) => {
       patchState({
-        capturingScreenshot: false,
         errorMessage: message,
       })
     },
-    setCapturingScreenshot: (capturing) => {
-      patchState({ capturingScreenshot: capturing })
+    showScreenshotPending: (input) => {
+      const retrying =
+        state.overlayOpen &&
+        state.view === "review" &&
+        state.media === null &&
+        state.screenshotStatus !== "idle"
+      if (retrying) {
+        // Same review screen, so whatever has been typed into the form stays.
+        patchState({
+          errorMessage: null,
+          screenshotStatus: "pending",
+          screenshotAspectRatio: input.aspectRatio,
+        })
+        return
+      }
+
+      const reporter = loadReporterIdentity()
+      pendingReviewCount += 1
+      patchState({
+        overlayOpen: true,
+        recordingDockOpen: false,
+        recordingStartedAt: null,
+        view: "review",
+        errorMessage: null,
+        busy: false,
+        screenshotStatus: "pending",
+        screenshotAspectRatio: input.aspectRatio,
+        media: null,
+        warnings: [],
+        summary: { ...DEFAULT_SUMMARY },
+        shareUrl: "",
+        copyLabel: "Copy Link",
+        reviewDraft: {
+          title: "",
+          description: "",
+          priority: DEFAULT_PRIORITY,
+          visibility: BUG_REPORT_VISIBILITY_OPTIONS.private,
+          reporterName: reporter.name,
+          reporterEmail: reporter.email,
+        },
+        reviewFormKey: `screenshot-${pendingReviewCount}`,
+      })
+    },
+    showScreenshotFallback: () => {
+      patchState({ screenshotStatus: "fallback" })
+    },
+    showScreenshotFailed: () => {
+      patchState({ screenshotStatus: "failed" })
+    },
+    showScreenshotReady: (input) => {
+      const waiting =
+        state.view === "review" &&
+        state.media === null &&
+        state.screenshotStatus !== "idle"
+      if (!waiting) {
+        showReview(input)
+        return
+      }
+
+      // The form (and its key) is left alone: the reviewer may already be typing in it.
+      patchState({
+        overlayOpen: true,
+        screenshotStatus: "idle",
+        media: input.media,
+        warnings: [...input.warnings],
+        summary: input.summary,
+      })
     },
     setTitleIfEmpty: (value) => {
       if (state.reviewDraft.title.trim().length > 0) {
@@ -153,7 +219,8 @@ function createInitialState(): CaptureUiState {
     overlayOpen: false,
     recordingDockOpen: false,
     busy: false,
-    capturingScreenshot: false,
+    screenshotStatus: "idle",
+    screenshotAspectRatio: null,
     errorMessage: null,
     recordingStartedAt: null,
     warnings: [],

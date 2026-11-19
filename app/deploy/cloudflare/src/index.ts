@@ -78,7 +78,9 @@ App.outboundByHost = {
 
 export class Renderer extends Container<Env> {
   defaultPort = 3102
-  sleepAfter = "10m"
+  // Stays up 30 quiet minutes so a run of reports doesn't keep paying the wake-up. Cost stays
+  // capped by max_instances 1 in wrangler.jsonc.
+  sleepAfter = "30m"
 
   constructor(ctx: ContainerContext, env: Env) {
     super(ctx, env)

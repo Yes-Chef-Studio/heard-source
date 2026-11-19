@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, mock } from "bun:test"
 import { fileURLToPath } from "node:url"
+import { gzipSync } from "node:zlib"
 import { z } from "zod"
 
 const CAPTURE_TOKEN_ROUTE_PATH = fileURLToPath(
@@ -10,6 +11,9 @@ const CAPTURE_UPLOAD_SESSION_ROUTE_PATH = fileURLToPath(
 )
 const CAPTURE_FINALIZE_ROUTE_PATH = fileURLToPath(
   new URL("../src/capture/finalize-route.ts", import.meta.url)
+)
+const RENDER_SNAPSHOT_ROUTE_PATH = fileURLToPath(
+  new URL("../src/capture/render-snapshot-route.ts", import.meta.url)
 )
 const CAPTURE_SUBMIT_PROTECTION_PATH = fileURLToPath(
   new URL("../src/capture/protection.ts", import.meta.url)
@@ -22,6 +26,8 @@ const mockedEnv: {
   BETTER_AUTH_URL: string
   CAPTURE_SUBMIT_TOKEN_SECRET: string
   CORS_ORIGINS: string[]
+  RENDERER_SECRET: string | undefined
+  RENDERER_URL: string | undefined
   TURNSTILE_SECRET_KEY: string | undefined
   TURNSTILE_SITE_KEY: string | undefined
   UPSTASH_REDIS_REST_TOKEN: string | undefined
@@ -30,6 +36,8 @@ const mockedEnv: {
   BETTER_AUTH_URL: "https://app.crikket.io",
   CAPTURE_SUBMIT_TOKEN_SECRET: "01234567890123456789012345678901",
   CORS_ORIGINS: ["https://app.crikket.io"],
+  RENDERER_SECRET: "renderer_secret",
+  RENDERER_URL: "http://renderer.internal",
   TURNSTILE_SECRET_KEY: "turnstile_secret",
   TURNSTILE_SITE_KEY: "turnstile_site",
   UPSTASH_REDIS_REST_TOKEN: "upstash_token",
@@ -193,7 +201,11 @@ mock.module("@upstash/ratelimit", () => ({
   },
 }))
 
+const realFetch = globalThis.fetch
+
 afterEach(() => {
+  globalThis.fetch = realFetch
+  mockedEnv.RENDERER_URL = "http://renderer.internal"
   activePublicKeyStatus = "active"
   activePublicKeyValue = publicKeyRecord.key
   mockedEnv.CAPTURE_SUBMIT_TOKEN_SECRET = "01234567890123456789012345678901"
@@ -592,3 +604,129 @@ function createFinalizeRequest(input?: {
     method: "POST",
   })
 }
+
+describe("render snapshot route", () => {
+  const snapshotRequest = (
+    headers: Record<string, string>,
+    body: string | Uint8Array
+  ) =>
+    new Request("https://api.crikket.io/api/embed/render-snapshot", {
+      body,
+      headers: {
+        "content-type": "application/json",
+        origin: validOrigin,
+        "x-crikket-public-key": publicKeyRecord.key,
+        ...headers,
+      },
+      method: "POST",
+    })
+
+  function stubRenderer(response: () => Response) {
+    const calls: { body: Uint8Array; headers: Headers; url: string }[] = []
+    globalThis.fetch = mock(async (url: URL | string, init?: RequestInit) => {
+      calls.push({
+        body: new Uint8Array(init?.body as ArrayBuffer),
+        headers: new Headers(init?.headers),
+        url: String(url),
+      })
+      return await Promise.resolve(response())
+    }) as unknown as typeof fetch
+    return calls
+  }
+
+  const jpeg = () =>
+    new Response(new Uint8Array([0xff, 0xd8, 0xff]), {
+      headers: {
+        "content-length": "3",
+        "content-type": "image/jpeg",
+        "server-timing": "rebuild;dur=12.0, shot;dur=30.5",
+        "x-render-engine": "chromium",
+        "x-render-ms": "57",
+      },
+    })
+
+  it("forwards a gzip body untouched and returns the renderer's image", async () => {
+    const calls = stubRenderer(jpeg)
+    const compressed = gzipSync(
+      new TextEncoder().encode(JSON.stringify({ snapshot: { type: 0 } }))
+    )
+    const { handleRenderSnapshot } = await import(RENDER_SNAPSHOT_ROUTE_PATH)
+    const response = await handleRenderSnapshot({
+      request: snapshotRequest({ "x-heard-body-encoding": "gzip" }, compressed),
+    })
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get("content-type")).toBe("image/jpeg")
+    expect(response.headers.get("content-length")).toBe("3")
+    expect(response.headers.get("x-render-engine")).toBe("chromium")
+    expect(response.headers.get("x-render-ms")).toBe("57")
+    const timing = response.headers.get("server-timing") ?? ""
+    expect(timing).toContain("auth;dur=")
+    expect(timing).toContain("upload;dur=")
+    expect(timing).toContain("renderer;dur=")
+    expect(timing).toContain("render-rebuild;dur=12.0")
+    expect(timing).toContain("render-shot;dur=30.5")
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(
+      new Uint8Array([0xff, 0xd8, 0xff])
+    )
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0]?.url).toBe("http://renderer.internal/render")
+    expect(calls[0]?.headers.get("x-heard-body-encoding")).toBe("gzip")
+    expect(calls[0]?.headers.get("x-renderer-secret")).toBe("renderer_secret")
+    expect(calls[0]?.body).toEqual(new Uint8Array(compressed))
+  })
+
+  it("forwards a plain JSON body without an encoding header", async () => {
+    const calls = stubRenderer(jpeg)
+    const body = JSON.stringify({ snapshot: { type: 0 } })
+    const { handleRenderSnapshot } = await import(RENDER_SNAPSHOT_ROUTE_PATH)
+    const response = await handleRenderSnapshot({
+      request: snapshotRequest({}, body),
+    })
+
+    expect(response.status).toBe(200)
+    expect(calls[0]?.headers.has("x-heard-body-encoding")).toBe(false)
+    expect(new TextDecoder().decode(calls[0]?.body)).toBe(body)
+  })
+
+  it("rejects an encoding it does not understand before calling the renderer", async () => {
+    const calls = stubRenderer(jpeg)
+    const { handleRenderSnapshot } = await import(RENDER_SNAPSHOT_ROUTE_PATH)
+    const response = await handleRenderSnapshot({
+      request: snapshotRequest({ "x-heard-body-encoding": "br" }, "x"),
+    })
+
+    expect(response.status).toBe(415)
+    expect(calls).toHaveLength(0)
+  })
+
+  it("does not forward snapshots from origins the key does not allow", async () => {
+    const calls = stubRenderer(jpeg)
+    const { handleRenderSnapshot } = await import(RENDER_SNAPSHOT_ROUTE_PATH)
+    const response = await handleRenderSnapshot({
+      request: snapshotRequest({ origin: "https://evil.example" }, "{}"),
+    })
+
+    expect(response.status).toBe(403)
+    expect(calls).toHaveLength(0)
+  })
+
+  it("passes on the renderer's verdict for a bad or oversized body", async () => {
+    stubRenderer(
+      () =>
+        new Response(JSON.stringify({ error: "Snapshot too large" }), {
+          status: 413,
+        })
+    )
+    const { handleRenderSnapshot } = await import(RENDER_SNAPSHOT_ROUTE_PATH)
+    const response = await handleRenderSnapshot({
+      request: snapshotRequest({ "x-heard-body-encoding": "gzip" }, "x"),
+    })
+
+    expect(response.status).toBe(413)
+    await expect(response.json()).resolves.toMatchObject({
+      code: "RENDER_FAILED",
+    })
+  })
+})

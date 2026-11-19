@@ -25,6 +25,22 @@ type LauncherMount = {
   zIndex: number
 }
 
+type LauncherOptions = {
+  zIndex: number
+  onOpen: () => void
+  onPrefetch: () => void
+  onPress?: () => void
+}
+
+type SnapshotCaptureCall = {
+  afterPaint: boolean
+  aborted: boolean
+}
+
+type PendingReviewInput = {
+  aspectRatio: number | null
+}
+
 type UiMount = {
   target: unknown
   zIndex: number
@@ -55,6 +71,17 @@ export const browserTarget = {} as HTMLElement
 
 export const sdkTestState = {
   launcherMounts: [] as LauncherMount[],
+  launcherOptions: null as LauncherOptions | null,
+  fetchedUrls: [] as string[],
+  // DOM snapshot screenshots (the default path). `snapshotError` makes the render fail, which
+  // sends the runtime to the screen-capture fallback; `holdSnapshot` keeps it pending until
+  // releaseSnapshot() is called.
+  snapshotCaptures: [] as SnapshotCaptureCall[],
+  snapshotError: null as Error | null,
+  holdSnapshot: false,
+  uiScreenshotPending: [] as PendingReviewInput[],
+  uiScreenshotFallbacks: 0,
+  uiScreenshotFailures: 0,
   launcherLoading: [] as boolean[],
   launcherUnmounts: 0,
   uiMounts: [] as UiMount[],
@@ -85,14 +112,22 @@ export const sdkTestState = {
 
 let nextObjectUrlId = 0
 let resolveRecordingFinished: ((value: RecordingResult) => void) | null = null
+let heldSnapshots: Array<() => void> = []
+
+// Lets snapshot screenshots held back by `holdSnapshot` finish.
+export function releaseSnapshot(): void {
+  for (const release of heldSnapshots) release()
+  heldSnapshots = []
+}
 let captureModule: typeof import("../../src/index") | undefined
 
 mock.module(MOUNT_CAPTURE_LAUNCHER_PATH, () => ({
-  mountCaptureLauncher: (target: unknown, options: { zIndex: number }) => {
+  mountCaptureLauncher: (target: unknown, options: LauncherOptions) => {
     sdkTestState.launcherMounts.push({
       target,
       zIndex: options.zIndex,
     })
+    sdkTestState.launcherOptions = options
 
     return {
       setLoading: (loading: boolean) => {
@@ -130,6 +165,18 @@ mock.module(MOUNT_CAPTURE_UI_PATH, () => ({
         showReview: (input: ReviewInput) => {
           sdkTestState.uiShowReviewInputs.push(input)
         },
+        showScreenshotPending: (input: PendingReviewInput) => {
+          sdkTestState.uiScreenshotPending.push(input)
+        },
+        showScreenshotFallback: () => {
+          sdkTestState.uiScreenshotFallbacks += 1
+        },
+        showScreenshotFailed: () => {
+          sdkTestState.uiScreenshotFailures += 1
+        },
+        showScreenshotReady: (input: ReviewInput) => {
+          sdkTestState.uiShowReviewInputs.push(input)
+        },
         showSuccess: (shareUrl?: string) => {
           sdkTestState.uiShowSuccessUrls.push(shareUrl)
         },
@@ -147,6 +194,42 @@ mock.module(MOUNT_CAPTURE_UI_PATH, () => ({
 }))
 
 mock.module(CAPTURE_MEDIA_PATH, () => ({
+  prefetchCaptureMedia: () => undefined,
+  startSnapshotCapture: (
+    _config: unknown,
+    options?: { afterPaint?: boolean }
+  ) => {
+    const call: SnapshotCaptureCall = {
+      afterPaint: options?.afterPaint ?? false,
+      aborted: false,
+    }
+    sdkTestState.snapshotCaptures.push(call)
+    const error = sdkTestState.snapshotError
+    const blob = sdkTestState.screenshotBlob
+    let rejectAborted: (reason: Error) => void = () => undefined
+    const result = new Promise<Blob>((resolve, reject) => {
+      rejectAborted = reject
+      const settle = () => {
+        if (error) reject(error)
+        else resolve(blob)
+      }
+      if (sdkTestState.holdSnapshot) heldSnapshots.push(settle)
+      else settle()
+    })
+    result.catch(() => undefined)
+
+    return {
+      result,
+      // No page copy in these tests, so nothing watches the (non-existent) DOM for changes.
+      pageCopied: Promise.resolve(null),
+      abort: () => {
+        call.aborted = true
+        const aborted = new Error("The operation was aborted.")
+        aborted.name = "AbortError"
+        rejectAborted(aborted)
+      },
+    }
+  },
   captureScreenshot: () => {
     if (sdkTestState.screenshotError) {
       return Promise.reject(sdkTestState.screenshotError)
@@ -217,6 +300,8 @@ mock.module(DEBUGGER_COLLECTOR_PATH, () => ({
   },
 }))
 
+const realFetch = globalThis.fetch
+
 export function setupCaptureSdkTestHooks(): void {
   beforeAll(async () => {
     captureModule = await import("../../src/index")
@@ -231,6 +316,10 @@ export function setupCaptureSdkTestHooks(): void {
   afterAll(() => {
     captureModule?.destroy()
     mock.restore()
+    Object.defineProperty(globalThis, "fetch", {
+      configurable: true,
+      value: realFetch,
+    })
   })
 }
 
@@ -257,6 +346,15 @@ export function createSubmitTransport(result?: CaptureSubmitResult) {
 
 export function resetSdkTestState(): void {
   sdkTestState.launcherMounts = []
+  sdkTestState.launcherOptions = null
+  sdkTestState.fetchedUrls = []
+  sdkTestState.snapshotCaptures = []
+  sdkTestState.snapshotError = null
+  sdkTestState.holdSnapshot = false
+  sdkTestState.uiScreenshotPending = []
+  sdkTestState.uiScreenshotFallbacks = 0
+  sdkTestState.uiScreenshotFailures = 0
+  heldSnapshots = []
   sdkTestState.launcherLoading = []
   sdkTestState.launcherUnmounts = 0
   sdkTestState.uiMounts = []
@@ -341,6 +439,16 @@ function installBrowserGlobals(): void {
     value: (callback: (time: number) => void) => {
       callback(0)
       return 1
+    },
+  })
+
+  // The widget only mounts on sites the API allows (runtime/site-check.ts); say yes to every
+  // site here. Nothing else in these tests reaches the network.
+  Object.defineProperty(globalThis, "fetch", {
+    configurable: true,
+    value: (input: unknown) => {
+      sdkTestState.fetchedUrls.push(String(input))
+      return Promise.resolve(Response.json({ allowed: true, color: null }))
     },
   })
 

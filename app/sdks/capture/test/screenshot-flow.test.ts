@@ -29,6 +29,7 @@ describe("capture SDK screenshot flow", () => {
       submitPath: "/api/embed/bug-reports",
       zIndex: 2_147_483_640,
     })
+    await waitFor(() => sdkTestState.launcherMounts.length === 1)
     expect(sdkTestState.launcherMounts).toEqual([
       {
         target: browserTarget,
@@ -38,9 +39,21 @@ describe("capture SDK screenshot flow", () => {
 
     capture.open()
     await waitFor(() => sdkTestState.uiOpenChooserCalls === 1)
+    // Opening the chooser starts the screenshot ahead of time...
+    expect(sdkTestState.snapshotCaptures).toEqual([
+      { afterPaint: true, aborted: false },
+    ])
 
     const screenshotBlob = await capture.takeScreenshot()
     expect(screenshotBlob).toBe(sdkTestState.screenshotBlob)
+    // ...and "Take screenshot" uses that one instead of starting another.
+    expect(sdkTestState.snapshotCaptures).toEqual([
+      { afterPaint: true, aborted: false },
+    ])
+    expect(sdkTestState.uiScreenshotPending).toEqual([
+      { aspectRatio: 720 / 1280 },
+    ])
+    expect(sdkTestState.uiScreenshotFallbacks).toBe(0)
     expect(sdkTestState.startSessionCalls).toEqual([
       {
         captureType: "screenshot",
@@ -57,8 +70,9 @@ describe("capture SDK screenshot flow", () => {
       summary: sdkTestState.reviewSnapshot.debuggerSummary,
       warnings: sdkTestState.reviewSnapshot.warnings,
     })
-    expect(sdkTestState.uiHidden).toEqual([true, false])
-    expect(sdkTestState.titlePrefills).toEqual(["Buggy Checkout"])
+    // A snapshot screenshot never hides the widget: it isn't part of the page copy.
+    expect(sdkTestState.uiHidden).not.toContain(true)
+    expect(sdkTestState.titlePrefills).toEqual([])
 
     const submitResult = await capture.submit({
       title: " Checkout submit is broken ",

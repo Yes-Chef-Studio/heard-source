@@ -21,6 +21,8 @@ export function CaptureWidgetShell(props: {
         <CaptureLauncherButton
           disabled={isBusy}
           onClick={props.handlers.onLauncherClick}
+          onIntent={props.handlers.onLauncherIntent}
+          onPress={props.handlers.onLauncherPress}
           zIndex={props.zIndex}
         />
       )}

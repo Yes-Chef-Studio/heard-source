@@ -37,7 +37,7 @@
       "image_build_context": "../..",
       // Chromium, WebKit and Firefox need the memory; a full vCPU (standard-2) renders a typical
       // site in about half the time of standard-1. One instance only, which caps the cost: it
-      // handles 3 screenshots at once and sleeps after 10 idle minutes. Worst case, awake all month,
+      // renders 2 screenshots at once (more wait in line) and sleeps after 30 idle minutes. Worst case, awake all month,
       // is about $42 at Cloudflare's 2026 rates; normal use is a few dollars.
       "instance_type": "standard-2",
       "max_instances": 1,

@@ -46,6 +46,8 @@ jobs:
           NEXT_PUBLIC_APP_URL=http://localhost:3001
           NEXT_PUBLIC_SERVER_URL=http://localhost:3000
           RENDERER_SECRET=$(secret)
+          # Keep checking the WebKit and Firefox render paths (production uses Chromium only).
+          RENDERER_MATCH_ENGINE=1
           ENABLE_PAYMENTS=false
           STORAGE_BUCKET=heard
           STORAGE_REGION=us-east-1

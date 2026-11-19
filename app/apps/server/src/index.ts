@@ -127,9 +127,13 @@ app.use(
       "x-crikket-capture-finalize-token",
       "x-crikket-capture-token",
       "x-crikket-public-key",
+      "x-heard-body-encoding",
     ],
-    exposeHeaders: ["x-render-engine", "x-render-ms"],
+    exposeHeaders: ["x-render-engine", "x-render-ms", "server-timing"],
     credentials: true,
+    // Browsers re-check CORS before each widget request unless told to cache the answer; from
+    // Europe that's an extra transatlantic round trip per screenshot. 2 h is Chrome's maximum.
+    maxAge: 7200,
   })
 )
 

@@ -14,7 +14,9 @@ import {
   normalizeZIndex,
 } from "../utils"
 import { CaptureSdkRuntime } from "./capture-runtime"
+import { prefetchCaptureCode } from "./prefetch-capture-code"
 import { getSiteColor, isSiteAllowed, warmRenderer } from "./site-check"
+import { afterPressReleased, SpeculativeCapture } from "./speculative-capture"
 
 type MountedCaptureLauncher = ReturnType<typeof mountCaptureLauncher>
 
@@ -27,6 +29,9 @@ export class LazyCaptureSdkRuntime implements CaptureRuntimeController {
   private eagerRuntime: CaptureSdkRuntime | null = null
   private eagerRuntimePromise: Promise<CaptureSdkRuntime> | null = null
   private lifecycleVersion = 0
+  // Heard: a screenshot started when the launcher was pressed, before the full runtime exists.
+  // Handed to the full runtime when the click that follows opens it.
+  private speculation: SpeculativeCapture | null = null
 
   init(options: CaptureInitOptions): CaptureRuntimeController {
     const runtimeConfig: CaptureRuntimeConfig = {
@@ -90,7 +95,11 @@ export class LazyCaptureSdkRuntime implements CaptureRuntimeController {
       },
       onPrefetch: () => {
         warmRenderer(runtimeConfig)
+        prefetchCaptureCode()
         this.prefetchRuntime().catch(() => undefined)
+      },
+      onPress: () => {
+        this.beginSpeculativeCapture(runtimeConfig)
       },
       zIndex: runtimeConfig.zIndex,
       color: getSiteColor(runtimeConfig),
@@ -108,12 +117,35 @@ export class LazyCaptureSdkRuntime implements CaptureRuntimeController {
     this.loadEagerRuntime(true).catch(() => undefined)
   }
 
+  // Heard: the launcher has been pressed, so a click is on its way. Copy the page and start the
+  // render now (see speculative-capture.ts). The launcher itself must stay as it is until the
+  // click lands, so the full runtime, which replaces it, is not created here.
+  private beginSpeculativeCapture(config: CaptureRuntimeConfig): void {
+    if (this.eagerRuntime || this.speculation?.isUsable()) return
+    this.discardSpeculation()
+    try {
+      this.speculation = new SpeculativeCapture(config)
+    } catch {
+      return
+    }
+    const pressed = this.speculation
+    afterPressReleased(() => {
+      if (this.speculation === pressed) this.discardSpeculation()
+    })
+  }
+
+  private discardSpeculation(): void {
+    this.speculation?.discard()
+    this.speculation = null
+  }
+
   close(): void {
     this.eagerRuntime?.close()
   }
 
   destroy(): void {
     this.lifecycleVersion += 1
+    this.discardSpeculation()
     this.mountedLauncher?.unmount()
     this.mountedLauncher = null
     this.mountedTarget = null
@@ -161,8 +193,13 @@ export class LazyCaptureSdkRuntime implements CaptureRuntimeController {
     openAfterLoad: boolean
   ): Promise<CaptureSdkRuntime> {
     const runtime = await this.getOrCreateEagerRuntime()
+    const speculation = this.speculation
+    this.speculation = null
     if (openAfterLoad) {
+      if (speculation) runtime.adoptSpeculativeCapture(speculation)
       runtime.open()
+    } else {
+      speculation?.discard()
     }
 
     return runtime

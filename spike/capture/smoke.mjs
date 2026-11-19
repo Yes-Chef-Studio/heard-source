@@ -2,7 +2,7 @@
 //   node smoke.mjs --api http://localhost:3000 --web http://localhost:3001 --key crk_... --origin https://allowed.example
 //
 // Checks: API and web respond; the site check allows only the key's listed origin; a real DOM
-// snapshot renders to a PNG through the API on the engine matching each reviewer browser; an
+// snapshot renders to an image (JPEG) through the API on the engine matching each reviewer browser; an
 // unlisted origin is refused.
 import { readFileSync, writeFileSync } from "node:fs";
 import { chromium } from "playwright";
@@ -68,9 +68,16 @@ for (const [engine, ua] of Object.entries(reviewers)) {
   const started = Date.now();
   const r = await render(ORIGIN, ua);
   const bytes = Buffer.from(await r.arrayBuffer());
+  // The renderer returns JPEG (smaller, faster to encode); accept PNG too.
   const isPng = bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  const isJpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  const type = r.headers.get("content-type") || "";
   const used = r.headers.get("x-render-engine");
-  check(r.status === 200 && isPng, `Render via API for a ${engine} reviewer returns a PNG`, `${r.status}, ${bytes.length} bytes, ${Date.now() - started} ms`);
+  check(
+    r.status === 200 && (isJpeg || isPng) && type.startsWith("image/"),
+    `Render via API for a ${engine} reviewer returns an image`,
+    `${r.status}, ${type}, ${bytes.length} bytes, ${Date.now() - started} ms`
+  );
   check(used === engine, `  rendered on ${engine}`, `x-render-engine=${used}`);
   if (isPng) writeFileSync(`smoke-${engine}.png`, bytes);
 }

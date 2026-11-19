@@ -3,11 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Renders DOM snapshots from the capture widget into screenshots with headless Chromium/WebKit/Firefox.",
+  "description": "Renders DOM snapshots from the capture widget into screenshots with headless Chromium (optionally WebKit/Firefox).",
   "scripts": {
     "build": "esbuild src/rebuild.js --bundle --format=iife --target=es2020 --minify --outfile=dist/rebuild.js",
     "dev": "bun run build && node --watch src/server.mjs",
     "start": "node src/server.mjs",
+    "test": "bun test test",
     "browsers": "playwright install chromium webkit firefox"
   },
   "dependencies": {

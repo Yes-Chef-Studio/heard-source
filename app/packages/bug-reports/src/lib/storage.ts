@@ -470,6 +470,10 @@ function encodePathSegment(filename: string): string {
 function getMimeTypeFromFilename(filename: string): string | null {
   if (filename.endsWith(".webm")) return "video/webm"
   if (filename.endsWith(".png")) return "image/png"
+  if (filename.endsWith(".jpg") || filename.endsWith(".jpeg")) {
+    return "image/jpeg"
+  }
+  if (filename.endsWith(".webp")) return "image/webp"
   return null
 }
 

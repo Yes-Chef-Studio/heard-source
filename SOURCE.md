@@ -6,4 +6,4 @@ GNU Affero General Public License v3.0 (see LICENSE).
 
 This repository holds the complete source of the version currently in use.
 
-Published from commit `9a6cf4a765d99ce26fb6ffc8341bddb45d2c901e` on 2026-11-19.
+Published from commit `0db098620950974617d294eeabaf842847a43ef5` on 2026-11-19.

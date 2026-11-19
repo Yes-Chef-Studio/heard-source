@@ -130,15 +130,26 @@ function buildEntitlementPayload(
   }
 }
 
+// Heard: screenshots are stored as what they are. The snapshot renderer returns JPEG; annotated
+// screenshots and screen-share captures are PNG; WebP is accepted too. Anything else claimed for a
+// screenshot is stored as PNG rather than trusting an arbitrary type from the reporter's browser.
+const SCREENSHOT_CONTENT_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+])
+
 function resolveCaptureContentType(input: {
   captureContentType?: string
   captureType: "video" | "screenshot"
 }): string {
-  if (input.captureContentType) {
-    return input.captureContentType
+  if (input.captureType === "screenshot") {
+    const normalized =
+      input.captureContentType?.split(";")[0]?.trim().toLowerCase() ?? ""
+    return SCREENSHOT_CONTENT_TYPES.has(normalized) ? normalized : "image/png"
   }
 
-  return input.captureType === "video" ? "video/webm" : "image/png"
+  return input.captureContentType || "video/webm"
 }
 
 export async function createBugReportUploadSession(input: {
@@ -174,12 +185,18 @@ export async function createBugReportUploadSession(input: {
     input.input.metadata?.pageTitle?.trim() ??
     buildFallbackTitle(input.input.attachmentType)
 
+  const captureContentType = resolveCaptureContentType({
+    captureContentType: input.input.captureContentType,
+    captureType: input.input.attachmentType,
+  })
+
   const result = await retryOnUniqueViolation(async () => {
     const bugReportId = nanoid(12)
     const captureKey = buildCaptureArtifactKey({
       organizationId: input.organizationId,
       bugReportId,
       captureType: input.input.attachmentType,
+      contentType: captureContentType,
     })
     const debuggerKey = input.input.hasDebuggerPayload
       ? buildDebuggerArtifactKey({
@@ -202,10 +219,7 @@ export async function createBugReportUploadSession(input: {
       url: input.input.url,
       attachmentType: input.input.attachmentType,
       captureKey,
-      captureContentType: resolveCaptureContentType({
-        captureContentType: input.input.captureContentType,
-        captureType: input.input.attachmentType,
-      }),
+      captureContentType,
       debuggerKey,
       visibility: input.input.visibility,
       deviceInfo: input.input.deviceInfo,
@@ -218,10 +232,7 @@ export async function createBugReportUploadSession(input: {
 
     const captureUpload = await storage.createUploadUrl({
       filename: captureKey,
-      contentType: resolveCaptureContentType({
-        captureContentType: input.input.captureContentType,
-        captureType: input.input.attachmentType,
-      }),
+      contentType: captureContentType,
     })
 
     const debuggerUpload = debuggerKey
@@ -351,13 +362,14 @@ export async function finalizeBugReportUpload(input: {
     }
   }
 
-  const captureContentType =
-    input.input.captureContentType ??
-    uploadSession.captureContentType ??
-    resolveCaptureContentType({
-      captureType:
-        uploadSession.attachmentType === "screenshot" ? "screenshot" : "video",
-    })
+  // The type the upload URL was signed for is what the object was stored with; the finalize
+  // request can only fill it in when the session has none.
+  const captureContentType = resolveCaptureContentType({
+    captureContentType:
+      uploadSession.captureContentType ?? input.input.captureContentType,
+    captureType:
+      uploadSession.attachmentType === "screenshot" ? "screenshot" : "video",
+  })
   const captureUploadedAt = new Date()
   const debuggerUploadedAt =
     uploadSession.debuggerKey && (input.input.debuggerSizeBytes ?? 0) > 0

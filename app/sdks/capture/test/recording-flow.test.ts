@@ -18,6 +18,7 @@ describe("capture SDK recording flow", () => {
       host: "https://api.crikket.io",
     })
 
+    await waitFor(() => sdkTestState.launcherMounts.length === 1)
     const startResult = await capture.startRecording()
     expect(startResult).toEqual({
       startedAt: 1_700_000_000_000,
@@ -29,7 +30,8 @@ describe("capture SDK recording flow", () => {
       },
     ])
     expect(sdkTestState.markRecordingStartedCalls).toEqual([1_700_000_000_000])
-    expect(sdkTestState.uiHidden).toEqual([true])
+    // Hidden while the browser's share prompt is up, then back for the "Stop recording" bar.
+    expect(sdkTestState.uiHidden).toEqual([true, false])
 
     const recordingBlob = await capture.stopRecording()
     expect(recordingBlob).toBe(sdkTestState.recordingBlob)
@@ -43,7 +45,7 @@ describe("capture SDK recording flow", () => {
         durationMs: sdkTestState.recordingDurationMs,
       },
     })
-    expect(sdkTestState.uiHidden).toEqual([true, false])
+    expect(sdkTestState.uiHidden).toEqual([true, false, false])
 
     await waitFor(() => sdkTestState.finalizeSessionCalls === 1)
 

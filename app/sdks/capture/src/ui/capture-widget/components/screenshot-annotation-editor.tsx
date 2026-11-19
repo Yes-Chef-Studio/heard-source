@@ -5,9 +5,11 @@ import {
   useRef,
   useState,
 } from "react"
+import type { CaptureUiState } from "../../types"
 import {
   clampAnnotationPoint,
   drawScreenshotAnnotations,
+  loadDecodedImage,
   type ScreenshotAnnotation,
   type ScreenshotAnnotationColor,
   screenshotAnnotationColorOptions,
@@ -31,7 +33,13 @@ export function ScreenshotAnnotationEditor(props: {
   annotations: ScreenshotAnnotation[]
   disabled: boolean
   onChange: (annotations: ScreenshotAnnotation[]) => void
-  src: string
+  // Tries the screenshot again after it failed.
+  onRetry: () => void
+  // Height / width of the screenshot that is on its way.
+  placeholderAspectRatio: number | null
+  // Null until the screenshot exists: a placeholder is shown in its place.
+  src: string | null
+  status: CaptureUiState["screenshotStatus"]
 }): React.JSX.Element {
   const annotationsRef = useRef(props.annotations)
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -55,23 +63,18 @@ export function ScreenshotAnnotationEditor(props: {
 
   useEffect(() => {
     let active = true
-    const image = new Image()
-    image.decoding = "async"
-    image.onload = () => {
-      if (!active) {
-        return
-      }
-
-      setLoadedImage(image)
-    }
-    image.onerror = () => {
-      if (!active) {
-        return
-      }
-
+    if (!props.src) {
       setLoadedImage(null)
+      return
     }
-    image.src = props.src
+
+    loadDecodedImage(props.src)
+      .then((image) => {
+        if (active) setLoadedImage(image)
+      })
+      .catch(() => {
+        if (active) setLoadedImage(null)
+      })
 
     return () => {
       active = false
@@ -103,7 +106,7 @@ export function ScreenshotAnnotationEditor(props: {
   const aspectRatio =
     loadedImage && loadedImage.naturalWidth > 0
       ? loadedImage.naturalHeight / loadedImage.naturalWidth
-      : 9 / 16
+      : (props.placeholderAspectRatio ?? 9 / 16)
   const displayWidth = Math.max(canvasWidth, 1)
   const displayHeight = Math.max(Math.round(displayWidth * aspectRatio), 1)
   const renderedAnnotations = useMemo(() => {
@@ -240,6 +243,8 @@ export function ScreenshotAnnotationEditor(props: {
   }
 
   const hasAnnotations = props.annotations.length > 0
+  // Nothing to draw on until the screenshot is here.
+  const toolsDisabled = props.disabled || !loadedImage
 
   return (
     <div className="grid min-h-full grid-rows-[auto_1fr]">
@@ -255,7 +260,7 @@ export function ScreenshotAnnotationEditor(props: {
           >
             <ToolButton
               active={tool === "draw"}
-              disabled={props.disabled}
+              disabled={toolsDisabled}
               icon={<DrawIcon className="h-4 w-4" />}
               label="Draw"
               onClick={() => {
@@ -264,7 +269,7 @@ export function ScreenshotAnnotationEditor(props: {
             />
             <ToolButton
               active={tool === "highlight"}
-              disabled={props.disabled}
+              disabled={toolsDisabled}
               icon={<HighlightIcon className="h-4 w-4" />}
               label="Highlight"
               onClick={() => {
@@ -273,7 +278,7 @@ export function ScreenshotAnnotationEditor(props: {
             />
             <ToolButton
               active={tool === "rectangle"}
-              disabled={props.disabled}
+              disabled={toolsDisabled}
               icon={<RectangleIcon className="h-4 w-4" />}
               label="Rectangle"
               onClick={() => {
@@ -287,7 +292,7 @@ export function ScreenshotAnnotationEditor(props: {
               <ColorButton
                 active={color === option.value}
                 color={option.value}
-                disabled={props.disabled}
+                disabled={toolsDisabled}
                 key={option.value}
                 label={option.label}
                 onClick={() => {
@@ -300,7 +305,7 @@ export function ScreenshotAnnotationEditor(props: {
             <Button
               aria-label="Undo"
               className="gap-2 border-0"
-              disabled={props.disabled || !hasAnnotations}
+              disabled={toolsDisabled || !hasAnnotations}
               onClick={() => {
                 props.onChange(props.annotations.slice(0, -1))
               }}
@@ -314,7 +319,7 @@ export function ScreenshotAnnotationEditor(props: {
             <Button
               aria-label="Clear all markup"
               className="gap-2 border-0"
-              disabled={props.disabled || !hasAnnotations}
+              disabled={toolsDisabled || !hasAnnotations}
               onClick={() => {
                 props.onChange([])
                 setDraftAnnotation(null)
@@ -333,21 +338,30 @@ export function ScreenshotAnnotationEditor(props: {
       <div className="min-h-0 overflow-auto">
         <div className="flex min-h-full items-center justify-center">
           <div className="w-full max-w-[960px]" ref={containerRef}>
-            <canvas
-              aria-label="Screenshot annotation editor"
-              className={cn(
-                "block w-full rounded-xl bg-white shadow-sm",
-                props.disabled ? "cursor-default" : "cursor-crosshair"
-              )}
-              onPointerCancel={handlePointerEnd}
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerEnd}
-              ref={canvasRef}
-              style={{
-                touchAction: "none",
-              }}
-            />
+            {loadedImage ? (
+              <canvas
+                aria-label="Screenshot annotation editor"
+                className={cn(
+                  "heard-fade-in block w-full rounded-xl bg-white shadow-sm",
+                  props.disabled ? "cursor-default" : "cursor-crosshair"
+                )}
+                data-heard-screenshot="ready"
+                onPointerCancel={handlePointerEnd}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerEnd}
+                ref={canvasRef}
+                style={{
+                  touchAction: "none",
+                }}
+              />
+            ) : (
+              <ScreenshotPlaceholder
+                aspectRatio={aspectRatio}
+                onRetry={props.onRetry}
+                status={props.status}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -364,6 +378,76 @@ export function ScreenshotAnnotationEditor(props: {
       y: (event.clientY - rect.top) / rect.height,
     })
   }
+}
+
+// Stands where the screenshot will be, at the size it will be, while it is on its way.
+function ScreenshotPlaceholder(props: {
+  aspectRatio: number
+  onRetry: () => void
+  status: CaptureUiState["screenshotStatus"]
+}): React.JSX.Element {
+  const failed = props.status === "failed"
+
+  return (
+    <div
+      aria-live="polite"
+      className={cn(
+        "grid w-full place-items-center rounded-xl border border-border/70 bg-muted/60 p-6 text-center",
+        failed ? null : "heard-placeholder-pulse"
+      )}
+      data-heard-screenshot={failed ? "failed" : "pending"}
+      style={{ aspectRatio: String(1 / props.aspectRatio) }}
+    >
+      {failed ? (
+        <div className="grid max-w-sm justify-items-center gap-3">
+          <div className="grid gap-1">
+            <p className="m-0 font-semibold text-base">
+              The screenshot couldn't be taken
+            </p>
+            <p className="m-0 text-muted-foreground text-sm">
+              What you've written is still here. Try again, or use Retake to
+              record a video instead.
+            </p>
+          </div>
+          <Button onClick={props.onRetry} type="button" variant="outline">
+            Try again
+          </Button>
+        </div>
+      ) : (
+        <div className="grid justify-items-center gap-3">
+          <svg
+            aria-hidden="true"
+            className="h-7 w-7 animate-spin text-foreground"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              cx="12"
+              cy="12"
+              opacity="0.2"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="3"
+            />
+            <path
+              d="M22 12a10 10 0 0 0-10-10"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeWidth="3"
+            />
+          </svg>
+          <div className="grid gap-1">
+            <p className="m-0 font-semibold text-base">Taking screenshot…</p>
+            <p className="m-0 text-muted-foreground text-sm">
+              {props.status === "fallback"
+                ? "We couldn't capture the page automatically. Choose this tab in your browser's prompt to share it instead."
+                : "You can describe the issue while it loads."}
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 function ToolButton(props: {
