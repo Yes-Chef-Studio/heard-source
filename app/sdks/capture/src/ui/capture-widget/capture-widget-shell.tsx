@@ -39,7 +39,7 @@ export function CaptureWidgetShell(props: {
             aria-modal="true"
             className={
               isReviewView
-                ? "relative m-auto flex h-[min(820px,calc(100dvh-2rem))] w-full max-w-[1120px] flex-col overflow-hidden border-border/80 bg-card text-card-foreground shadow-2xl"
+                ? "relative m-auto flex h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden border-border/80 bg-card text-card-foreground shadow-2xl"
                 : "relative m-auto flex max-h-[calc(100dvh-2rem)] w-full max-w-[480px] flex-col overflow-hidden border-border/80 bg-card text-card-foreground shadow-2xl"
             }
             role="dialog"

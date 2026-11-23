@@ -55,7 +55,7 @@ function ReviewMedia(props: {
   }
 
   return (
-    <div className="flex min-h-full items-center justify-center">
+    <div className="flex flex-1 items-center justify-center">
       <div className="aspect-video w-full overflow-hidden rounded-xl border border-border/70 bg-black">
         <MediaPreview media={media} />
       </div>
@@ -119,11 +119,11 @@ export function ReviewFormSection({
 
   return (
     <section
-      className="grid h-full min-h-0 gap-0 lg:grid-cols-[minmax(0,1.5fr)_360px]"
+      className="grid h-full min-h-0 gap-0 lg:grid-cols-[minmax(0,1fr)_340px]"
       key={formKey}
     >
       <div className="flex min-h-[320px] min-w-0 flex-col border-b bg-muted/20 lg:border-r lg:border-b-0">
-        <div className="min-h-0 flex-1 overflow-auto p-5">
+        <div className="flex min-h-0 flex-1 flex-col overflow-auto p-4 lg:p-5">
           <ReviewMedia
             annotations={annotations}
             disabled={state.busy || isSubmitting}

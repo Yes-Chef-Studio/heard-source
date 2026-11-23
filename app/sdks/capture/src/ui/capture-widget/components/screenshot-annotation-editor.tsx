@@ -28,6 +28,10 @@ import { cn } from "./primitives/cn"
 type AnnotationTool = "arrow" | "draw" | "highlight" | "rectangle"
 
 const DEFAULT_TOOL: AnnotationTool = "draw"
+// In a space shorter or narrower than this (the stacked phone layout) the screenshot is sized to
+// the width and scrolls, so it stays big enough to draw on.
+const MIN_FIT_HEIGHT = 240
+const MIN_FIT_WIDTH = 560
 const DEFAULT_COLOR = screenshotAnnotationColorOptions[0].value
 
 export function ScreenshotAnnotationEditor(props: {
@@ -52,7 +56,7 @@ export function ScreenshotAnnotationEditor(props: {
   const [draftAnnotation, setDraftAnnotation] =
     useState<ScreenshotAnnotation | null>(null)
   const draftAnnotationRef = useRef<ScreenshotAnnotation | null>(null)
-  const [canvasWidth, setCanvasWidth] = useState(0)
+  const [areaSize, setAreaSize] = useState({ width: 0, height: 0 })
 
   useEffect(() => {
     annotationsRef.current = props.annotations
@@ -94,7 +98,10 @@ export function ScreenshotAnnotationEditor(props: {
         return
       }
 
-      setCanvasWidth(Math.floor(entry.contentRect.width))
+      setAreaSize({
+        width: Math.floor(entry.contentRect.width),
+        height: Math.floor(entry.contentRect.height),
+      })
     })
 
     observer.observe(container)
@@ -108,7 +115,16 @@ export function ScreenshotAnnotationEditor(props: {
     loadedImage && loadedImage.naturalWidth > 0
       ? loadedImage.naturalHeight / loadedImage.naturalWidth
       : (props.placeholderAspectRatio ?? 9 / 16)
-  const displayWidth = Math.max(canvasWidth, 1)
+  // Fit the screenshot inside the space it has, as large as possible, so it can be marked up
+  // without scrolling.
+  const fitsByHeight =
+    areaSize.height >= MIN_FIT_HEIGHT && areaSize.width >= MIN_FIT_WIDTH
+  const displayWidth = Math.max(
+    fitsByHeight
+      ? Math.min(areaSize.width, Math.floor(areaSize.height / aspectRatio))
+      : areaSize.width,
+    1
+  )
   const displayHeight = Math.max(Math.round(displayWidth * aspectRatio), 1)
   const renderedAnnotations = useMemo(() => {
     return draftAnnotation
@@ -278,7 +294,7 @@ export function ScreenshotAnnotationEditor(props: {
   const toolsDisabled = props.disabled || !loadedImage
 
   return (
-    <div className="grid min-h-full grid-rows-[auto_1fr]">
+    <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)]">
       <div className="grid gap-2 pb-4">
         <p className="m-0 text-muted-foreground text-sm">
           Draw on the screenshot to show us where the issue is.
@@ -375,9 +391,9 @@ export function ScreenshotAnnotationEditor(props: {
         </div>
       </div>
 
-      <div className="min-h-0 overflow-auto">
+      <div className="min-h-0 overflow-auto" ref={containerRef}>
         <div className="flex min-h-full items-center justify-center">
-          <div className="w-full max-w-[960px]" ref={containerRef}>
+          <div className="shrink-0" style={{ width: displayWidth }}>
             {loadedImage ? (
               <canvas
                 aria-label="Screenshot annotation editor"
