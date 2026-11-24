@@ -12,7 +12,7 @@ export default async function ProjectPage({
 }) {
   const { projectId } = await params
   return (
-    <div className="flex flex-1 flex-col gap-4 pt-4">
+    <div className="flex flex-1 flex-col gap-8 pt-6">
       <ProjectHeader projectId={projectId} />
       <BugReportsList projectId={projectId} />
     </div>

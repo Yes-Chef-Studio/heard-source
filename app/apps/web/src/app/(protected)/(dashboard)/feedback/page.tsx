@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function AllFeedbackPage() {
   return (
-    <div className="flex flex-1 flex-col gap-4 pt-4">
+    <div className="flex flex-1 flex-col gap-8 pt-6">
       <div>
         <h1 className="font-bold text-3xl tracking-tight">All feedback</h1>
         <p className="mt-1 text-muted-foreground">

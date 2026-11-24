@@ -42,8 +42,8 @@ export function BugReportsList({ projectId }: { projectId?: string } = {}) {
     <div
       className={
         actionsState.selectedCount > 0
-          ? "space-y-4 pb-40 sm:pb-32 lg:pb-28"
-          : "space-y-4"
+          ? "space-y-6 pb-40 sm:pb-32 lg:pb-28"
+          : "space-y-6"
       }
     >
       <BugReportsToolbar
@@ -100,7 +100,7 @@ export function BugReportsList({ projectId }: { projectId?: string } = {}) {
       ) : null}
 
       {isLoading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {["s1", "s2", "s3", "s4"].map((skeletonKey) => (
             <div
               className="aspect-video w-full animate-pulse rounded-lg bg-muted"
@@ -131,7 +131,7 @@ export function BugReportsList({ projectId }: { projectId?: string } = {}) {
       ) : null}
 
       {reports.length > 0 ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {reports.map((report) => (
             <BugReportCard
               isChecked={actionsState.selectedIds.has(report.id)}

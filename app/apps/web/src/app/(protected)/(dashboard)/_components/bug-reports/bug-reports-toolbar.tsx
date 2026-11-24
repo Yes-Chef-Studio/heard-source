@@ -108,9 +108,9 @@ export function BugReportsToolbar({
     SORT_OPTIONS.find((option) => option.value === sort)?.label ?? "Sort"
 
   return (
-    <div className="space-y-3 rounded-lg border bg-card p-3">
-      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-        <div className="relative w-full lg:max-w-sm">
+    <div className="space-y-3">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="relative w-full xl:max-w-sm">
           <Search className="pointer-events-none absolute top-2.5 left-2.5 size-4 text-muted-foreground" />
           <Input
             className="pl-9"
@@ -120,14 +120,14 @@ export function BugReportsToolbar({
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 xl:justify-end">
           <Select
             onValueChange={(value) =>
               onSiteChange(!value || value === ALL ? "" : String(value))
             }
             value={filters.site || ALL}
           >
-            <SelectTrigger className="w-[220px]">
+            <SelectTrigger className="w-[200px]">
               <SelectValue>
                 {filters.site ? formatSiteLabel(filters.site) : "All sites"}
               </SelectValue>
@@ -149,7 +149,7 @@ export function BugReportsToolbar({
             }
             value={filters.pagePath || ALL}
           >
-            <SelectTrigger className="w-[200px]">
+            <SelectTrigger className="w-[160px]">
               <SelectValue>{filters.pagePath || "All pages"}</SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -169,7 +169,7 @@ export function BugReportsToolbar({
             }}
             value={filters.priorities[0] ?? ALL}
           >
-            <SelectTrigger className="w-[200px]">
+            <SelectTrigger className="w-[160px]">
               <SelectValue>
                 {filters.priorities.length > 0
                   ? filters.priorities
@@ -196,7 +196,7 @@ export function BugReportsToolbar({
             onValueChange={(value) => onSortChange(value as BugReportSort)}
             value={sort}
           >
-            <SelectTrigger className="w-[200px]">
+            <SelectTrigger className="w-[160px]">
               <SelectValue>{selectedSortLabel}</SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -247,59 +247,69 @@ export function BugReportsToolbar({
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button
-            disabled={activeFilters === 0}
-            onClick={onClearFilters}
-            size="sm"
-            variant="ghost"
-          >
-            Clear filters
-          </Button>
+          {activeFilters > 0 ? (
+            <Button onClick={onClearFilters} size="sm" variant="ghost">
+              Clear filters
+            </Button>
+          ) : null}
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        {stats ? (
-          <>
-            <StatChip
-              icon={<TriangleAlert className="size-3.5" />}
-              label="Open"
-              value={stats.open}
-            />
-            <StatChip
-              icon={<Shield className="size-3.5" />}
-              label="Untriaged"
-              value={stats.untriaged}
-            />
-            <StatChip
-              icon={<UserRound className="size-3.5" />}
-              label="Mine"
-              value={stats.mine}
-            />
-            <StatChip
-              icon={<Tag className="size-3.5" />}
-              label="Total"
-              value={stats.total}
-            />
-          </>
-        ) : null}
-        {filters.site ? (
-          <Pill>
-            <Globe className="mr-1 size-3" />
-            {formatSiteLabel(filters.site)}
-            {filters.pagePath ? filters.pagePath : ""}
-          </Pill>
-        ) : null}
-        {filters.statuses.map((status) => (
-          <Pill key={status}>{formatStatusLabel(status)}</Pill>
-        ))}
-        {filters.priorities.map((priority) => (
-          <Pill key={priority}>{formatPriorityLabel(priority)}</Pill>
-        ))}
-        {filters.visibilities.map((visibility) => (
-          <Pill key={visibility}>{formatVisibilityLabel(visibility)}</Pill>
-        ))}
-      </div>
+      <SummaryRow filters={filters} stats={stats} />
+    </div>
+  )
+}
+
+function SummaryRow({
+  filters,
+  stats,
+}: {
+  filters: DashboardFilters
+  stats?: BugReportStats
+}) {
+  if (!stats && countActiveFilters(filters) === 0) return null
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {stats ? (
+        <>
+          <StatChip
+            icon={<TriangleAlert className="size-3.5" />}
+            label="Open"
+            value={stats.open}
+          />
+          <StatChip
+            icon={<Shield className="size-3.5" />}
+            label="Untriaged"
+            value={stats.untriaged}
+          />
+          <StatChip
+            icon={<UserRound className="size-3.5" />}
+            label="Mine"
+            value={stats.mine}
+          />
+          <StatChip
+            icon={<Tag className="size-3.5" />}
+            label="Total"
+            value={stats.total}
+          />
+        </>
+      ) : null}
+      {filters.site ? (
+        <Pill>
+          <Globe className="mr-1 size-3" />
+          {formatSiteLabel(filters.site)}
+          {filters.pagePath ? filters.pagePath : ""}
+        </Pill>
+      ) : null}
+      {filters.statuses.map((status) => (
+        <Pill key={status}>{formatStatusLabel(status)}</Pill>
+      ))}
+      {filters.priorities.map((priority) => (
+        <Pill key={priority}>{formatPriorityLabel(priority)}</Pill>
+      ))}
+      {filters.visibilities.map((visibility) => (
+        <Pill key={visibility}>{formatVisibilityLabel(visibility)}</Pill>
+      ))}
     </div>
   )
 }
