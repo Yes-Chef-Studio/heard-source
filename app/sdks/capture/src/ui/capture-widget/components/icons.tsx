@@ -69,6 +69,17 @@ export function UndoIcon(
   )
 }
 
+export function RedoIcon(
+  props: React.SVGProps<SVGSVGElement>
+): React.JSX.Element {
+  return (
+    <SvgIcon {...props}>
+      <path d="m14 8 5 4-5 4" />
+      <path d="M18 12h-8a4 4 0 1 0 0 8h1" />
+    </SvgIcon>
+  )
+}
+
 export function ResetIcon(
   props: React.SVGProps<SVGSVGElement>
 ): React.JSX.Element {

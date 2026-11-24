@@ -2,6 +2,7 @@ import {
   BUG_REPORT_VISIBILITY_OPTIONS,
   type BugReportVisibility,
 } from "@crikket/shared/constants/bug-report"
+import { CATEGORIES, isCategory } from "@crikket/shared/constants/categories"
 import {
   PRIORITIES,
   PRIORITY_OPTIONS,
@@ -22,6 +23,12 @@ export type ReviewDraftErrors = Partial<
 export const capturePriorityOptions = PRIORITIES.map((priority) => ({
   label: `${priority.label}: ${priority.description}`,
   value: priority.value,
+}))
+
+export const captureCategoryOptions = CATEGORIES.map((category) => ({
+  color: category.color,
+  label: category.label,
+  value: category.value,
 }))
 
 export function validateReviewDraft(
@@ -59,6 +66,11 @@ export function validateReviewDraft(
     errors.priority = "Select a valid priority."
   }
 
+  // Optional: only a value that is not one of ours is an error.
+  if (value.category && !isCategory(value.category)) {
+    errors.category = "Select a valid category."
+  }
+
   if (
     value.visibility !== undefined &&
     !visibilityValues.has(value.visibility)
@@ -75,6 +87,7 @@ export function trimReviewDraftForSubmission(
   return {
     description: draft.description.trim(),
     priority: draft.priority,
+    category: isCategory(draft.category) ? draft.category : "",
     title: draft.title.trim(),
     reporterName: draft.reporterName?.trim() ?? "",
     reporterEmail: draft.reporterEmail?.trim() ?? "",

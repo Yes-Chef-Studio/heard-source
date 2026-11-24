@@ -110,17 +110,22 @@ export function resolveRecordingMimeType(): string {
 
 export function canvasToBlob(
   canvas: HTMLCanvasElement,
-  type: string
+  type: string,
+  quality?: number
 ): Promise<Blob> {
   return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        reject(new Error("Failed to generate captured image."))
-        return
-      }
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          reject(new Error("Failed to generate captured image."))
+          return
+        }
 
-      resolve(blob)
-    }, type)
+        resolve(blob)
+      },
+      type,
+      quality
+    )
   })
 }
 

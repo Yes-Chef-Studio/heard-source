@@ -1,6 +1,7 @@
 // Public, no sign-in: a project's client share link (/p/<token>).
 // Everything is scoped to the project behind the token, and only client-safe fields leave here:
-// no priority, tags, debug logs or internal status names. Comments are one shared thread.
+// no priority, tags, debug logs or internal status names. The category (Copy, Functionality, ...)
+// is shown: it describes the issue, not how the team is handling it. Comments are one shared thread.
 import { db } from "@crikket/db"
 import { user } from "@crikket/db/schema/auth"
 import {
@@ -15,6 +16,10 @@ import {
   statusesForClientStatus,
   toClientStatus,
 } from "@crikket/shared/constants/bug-report"
+import {
+  type Category,
+  normalizeCategory,
+} from "@crikket/shared/constants/categories"
 import { ORPCError } from "@orpc/server"
 import { and, asc, count, desc, eq, inArray } from "drizzle-orm"
 import { nanoid } from "nanoid"
@@ -47,6 +52,7 @@ export interface SharedReportItem {
   attachmentUrl: string | null
   reporterName: string | null
   status: ClientStatus
+  category: Category | null
   commentCount: number
   createdAt: string
 }
@@ -109,6 +115,7 @@ async function toSharedReport(
     attachmentUrl: await resolveCaptureUrl({ captureKey: report.captureKey }),
     reporterName: report.reporterName,
     status: toClientStatus(report.status),
+    category: normalizeCategory(report.category),
     commentCount,
     createdAt: report.createdAt.toISOString(),
   }

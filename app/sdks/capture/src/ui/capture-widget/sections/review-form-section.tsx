@@ -1,3 +1,5 @@
+import { NO_CATEGORY_LABEL } from "@crikket/shared/constants/categories"
+import { getPriorityColor } from "@crikket/shared/constants/priorities"
 import { useEffect, useRef, useState } from "react"
 import type { CaptureSubmissionDraft } from "../../../types"
 import type { CaptureReviewSubmitOptions, CaptureUiState } from "../../types"
@@ -11,7 +13,10 @@ import { Label } from "../components/primitives/label"
 import { Textarea } from "../components/primitives/textarea"
 import { ScreenshotAnnotationEditor } from "../components/screenshot-annotation-editor"
 import { useReviewForm } from "../hooks/use-review-form"
-import { capturePriorityOptions } from "../utils/review-form-schema"
+import {
+  captureCategoryOptions,
+  capturePriorityOptions,
+} from "../utils/review-form-schema"
 import {
   createAnnotatedScreenshotBlob,
   type ScreenshotAnnotation,
@@ -60,6 +65,70 @@ function ReviewMedia(props: {
         <MediaPreview media={media} />
       </div>
     </div>
+  )
+}
+
+// Shows the colour the team will see for the chosen priority or category.
+function ColorDot(props: {
+  color: string | undefined
+}): React.JSX.Element | null {
+  if (!props.color) {
+    return null
+  }
+  return (
+    <span
+      aria-hidden="true"
+      className="ml-2 inline-block size-2 rounded-full align-middle"
+      style={{ backgroundColor: props.color }}
+    />
+  )
+}
+
+// Optional: "No category" is a valid answer and the default.
+function CategoryField(props: {
+  formKey: string
+  onChange: (category: NonNullable<CaptureSubmissionDraft["category"]>) => void
+  value: NonNullable<CaptureSubmissionDraft["category"]>
+}): React.JSX.Element {
+  const id = `${props.formKey}-category`
+  const selected = captureCategoryOptions.find(
+    (category) => category.value === props.value
+  )
+  return (
+    <Field>
+      <Label htmlFor={id}>
+        Category{" "}
+        <span className="font-normal text-muted-foreground">(optional)</span>
+        <ColorDot color={selected?.color} />
+      </Label>
+      <select
+        className={cn(
+          "h-10 px-3",
+          FIELD_CLASSES,
+          props.value === "" ? "text-muted-foreground" : null
+        )}
+        id={id}
+        onChange={(event) => {
+          props.onChange(
+            event.currentTarget.value as NonNullable<
+              CaptureSubmissionDraft["category"]
+            >
+          )
+        }}
+        value={props.value}
+      >
+        <option value="">{NO_CATEGORY_LABEL}</option>
+        {captureCategoryOptions.map((category) => (
+          <option
+            className="text-foreground"
+            key={category.value}
+            value={category.value}
+          >
+            {category.label}
+          </option>
+        ))}
+      </select>
+    </Field>
   )
 }
 
@@ -255,7 +324,16 @@ export function ReviewFormSection({
             </Field>
 
             <Field data-invalid={Boolean(form.visibleErrors.priority)}>
-              <Label htmlFor={`${formKey}-priority`}>Priority</Label>
+              <Label htmlFor={`${formKey}-priority`}>
+                Priority
+                <ColorDot
+                  color={
+                    form.draft.priority
+                      ? getPriorityColor(form.draft.priority)
+                      : undefined
+                  }
+                />
+              </Label>
               <select
                 aria-invalid={Boolean(form.visibleErrors.priority)}
                 aria-required="true"
@@ -294,6 +372,14 @@ export function ReviewFormSection({
                 <FieldError errors={[form.visibleErrors.priority]} />
               ) : null}
             </Field>
+
+            <CategoryField
+              formKey={formKey}
+              onChange={(category) => {
+                form.setFieldValue("category", category)
+              }}
+              value={form.draft.category ?? ""}
+            />
             <div className="grid grid-cols-2 gap-3 pt-1">
               <Button
                 className="h-10 w-full"

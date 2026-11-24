@@ -4,6 +4,7 @@ import type {
   BugReportStatus,
   BugReportVisibility,
 } from "@crikket/shared/constants/bug-report"
+import type { Category } from "@crikket/shared/constants/categories"
 import type { Priority } from "@crikket/shared/constants/priorities"
 import { useMutation } from "@tanstack/react-query"
 import { useEffect, useMemo, useState } from "react"
@@ -11,6 +12,15 @@ import { toast } from "sonner"
 
 import { client } from "@/utils/orpc"
 import { parseTagInput } from "../_components/bug-reports/utils"
+
+function resolveBulkCategory(
+  value: Category | "none" | ""
+): Category | null | undefined {
+  if (value === "") {
+    return
+  }
+  return value === "none" ? null : value
+}
 
 interface UseBugReportsActionsInput {
   reportIds: string[]
@@ -27,6 +37,8 @@ export function useBugReportsActions({
 
   const [bulkStatus, setBulkStatus] = useState<BugReportStatus | "">("")
   const [bulkPriority, setBulkPriority] = useState<Priority | "">("")
+  // "none" clears the category on the selected reports.
+  const [bulkCategory, setBulkCategory] = useState<Category | "none" | "">("")
   const [bulkVisibility, setBulkVisibility] = useState<
     BugReportVisibility | ""
   >("")
@@ -48,6 +60,7 @@ export function useBugReportsActions({
   const resetBulkInputs = () => {
     setBulkStatus("")
     setBulkPriority("")
+    setBulkCategory("")
     setBulkVisibility("")
     setBulkTagsInput("")
   }
@@ -85,6 +98,7 @@ export function useBugReportsActions({
       id: string
       status?: BugReportStatus
       priority?: Priority
+      category?: Category | null
       visibility?: BugReportVisibility
     }) => client.bugReport.update(input),
     onSuccess: async () => {
@@ -101,6 +115,7 @@ export function useBugReportsActions({
       ids: string[]
       status?: BugReportStatus
       priority?: Priority
+      category?: Category | null
       visibility?: BugReportVisibility
       tags?: string[]
     }) => client.bugReport.updateBulk(input),
@@ -162,6 +177,7 @@ export function useBugReportsActions({
     const hasUpdate =
       Boolean(bulkStatus) ||
       Boolean(bulkPriority) ||
+      Boolean(bulkCategory) ||
       Boolean(bulkVisibility) ||
       tags.length > 0
 
@@ -174,6 +190,7 @@ export function useBugReportsActions({
       ids: selectedIdList,
       status: bulkStatus || undefined,
       priority: bulkPriority || undefined,
+      category: resolveBulkCategory(bulkCategory),
       visibility: bulkVisibility || undefined,
       tags: tags.length > 0 ? tags : undefined,
     })
@@ -195,6 +212,8 @@ export function useBugReportsActions({
     setBulkStatus,
     bulkPriority,
     setBulkPriority,
+    bulkCategory,
+    setBulkCategory,
     bulkVisibility,
     setBulkVisibility,
     bulkTagsInput,

@@ -11,6 +11,7 @@ import type { Route } from "next"
 import Link from "next/link"
 import { useState } from "react"
 
+import { CategoryBadge } from "@/components/bug-reports/category-picker"
 import { formatRelativeTime, formatSite } from "@/lib/relative-time"
 import { type client, orpc } from "@/utils/orpc"
 import {
@@ -86,6 +87,7 @@ function TicketCard({
         >
           {report.page}
         </p>
+        <CategoryBadge category={report.category} className="w-fit" />
         <div className="mt-auto flex items-center justify-between gap-2 text-muted-foreground text-xs">
           <span className="truncate">
             {report.reporterName ? `${report.reporterName} · ` : ""}

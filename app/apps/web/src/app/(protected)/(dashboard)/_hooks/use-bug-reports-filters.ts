@@ -8,6 +8,8 @@ import {
   type BugReportStatus,
   type BugReportVisibility,
 } from "@crikket/shared/constants/bug-report"
+import { CATEGORY_VALUES } from "@crikket/shared/constants/categories"
+import { BROWSER_VALUES, DEVICE_VALUES } from "@crikket/shared/constants/device"
 import {
   PRIORITY_OPTIONS,
   type Priority,
@@ -21,7 +23,13 @@ import {
 } from "nuqs"
 import { useEffect, useMemo, useState } from "react"
 
-import type { DashboardFilters } from "../_components/bug-reports/filters"
+import {
+  type CategoryFilter,
+  countActiveFilters,
+  type DashboardFilters,
+  EMPTY_FILTERS,
+  NO_CATEGORY_FILTER,
+} from "../_components/bug-reports/filters"
 import { toggleValue } from "../_components/bug-reports/utils"
 
 const STATUS_VALUES = Object.values(
@@ -45,17 +53,37 @@ const SORT_VALUES = [
   BUG_REPORT_SORT_OPTIONS.priorityLow,
 ] as const satisfies readonly BugReportSort[]
 
-const EMPTY_DASHBOARD_FILTERS: DashboardFilters = {
-  statuses: [],
-  priorities: [],
-  visibilities: [],
-  site: "",
-  pagePath: "",
+const CATEGORY_FILTER_VALUES = [
+  ...CATEGORY_VALUES,
+  NO_CATEGORY_FILTER,
+] as const satisfies readonly CategoryFilter[]
+
+// Everything "Clear filters" resets. Search and sort are kept.
+const CLEARED_FILTERS = {
+  statuses: EMPTY_FILTERS.statuses,
+  priorities: EMPTY_FILTERS.priorities,
+  categories: EMPTY_FILTERS.categories,
+  visibilities: EMPTY_FILTERS.visibilities,
+  pagePath: EMPTY_FILTERS.pagePath,
+  browsers: EMPTY_FILTERS.browsers,
+  devices: EMPTY_FILTERS.devices,
+  reporter: EMPTY_FILTERS.reporter,
 }
 
 export function useBugReportsFilters() {
   const [
-    { search, sort, statuses, priorities, visibilities, site, pagePath },
+    {
+      search,
+      sort,
+      statuses,
+      priorities,
+      categories,
+      visibilities,
+      pagePath,
+      browsers,
+      devices,
+      reporter,
+    },
     setFilterSearchQuery,
   ] = useQueryStates(
     {
@@ -74,8 +102,20 @@ export function useBugReportsFilters() {
       visibilities: parseAsArrayOf(parseAsStringLiteral(VISIBILITY_VALUES))
         .withOptions({ clearOnDefault: true })
         .withDefault([]),
-      site: parseAsString.withOptions({ clearOnDefault: true }).withDefault(""),
+      categories: parseAsArrayOf(parseAsStringLiteral(CATEGORY_FILTER_VALUES))
+        .withOptions({ clearOnDefault: true })
+        .withDefault([]),
+      // Old links may still carry ?site=...; it is no longer read, so it is ignored.
       pagePath: parseAsString
+        .withOptions({ clearOnDefault: true })
+        .withDefault(""),
+      browsers: parseAsArrayOf(parseAsStringLiteral(BROWSER_VALUES))
+        .withOptions({ clearOnDefault: true })
+        .withDefault([]),
+      devices: parseAsArrayOf(parseAsStringLiteral(DEVICE_VALUES))
+        .withOptions({ clearOnDefault: true })
+        .withDefault([]),
+      reporter: parseAsString
         .withOptions({ clearOnDefault: true })
         .withDefault(""),
     },
@@ -100,18 +140,29 @@ export function useBugReportsFilters() {
   }, [debouncedSearch, search, setFilterSearchQuery])
 
   const filters = useMemo<DashboardFilters>(
-    () => ({ statuses, priorities, visibilities, site, pagePath }),
-    [statuses, priorities, visibilities, site, pagePath]
+    () => ({
+      statuses,
+      priorities,
+      categories,
+      visibilities,
+      pagePath,
+      browsers,
+      devices,
+      reporter,
+    }),
+    [
+      statuses,
+      priorities,
+      categories,
+      visibilities,
+      pagePath,
+      browsers,
+      devices,
+      reporter,
+    ]
   )
 
-  const hasFilters = useMemo(
-    () =>
-      filters.statuses.length > 0 ||
-      filters.priorities.length > 0 ||
-      filters.visibilities.length > 0 ||
-      filters.site.length > 0,
-    [filters]
-  )
+  const hasFilters = useMemo(() => countActiveFilters(filters) > 0, [filters])
 
   return {
     searchValue: searchInput,
@@ -123,24 +174,13 @@ export function useBugReportsFilters() {
     },
     filters,
     clearFilters: () => {
-      setFilterSearchQuery({
-        statuses: EMPTY_DASHBOARD_FILTERS.statuses,
-        priorities: EMPTY_DASHBOARD_FILTERS.priorities,
-        visibilities: EMPTY_DASHBOARD_FILTERS.visibilities,
-        site: EMPTY_DASHBOARD_FILTERS.site,
-        pagePath: EMPTY_DASHBOARD_FILTERS.pagePath,
-      }).catch(() => undefined)
+      setFilterSearchQuery(CLEARED_FILTERS).catch(() => undefined)
     },
     resetFiltersAndSearch: () => {
       setSearchInput("")
-      setFilterSearchQuery({
-        search: "",
-        statuses: EMPTY_DASHBOARD_FILTERS.statuses,
-        priorities: EMPTY_DASHBOARD_FILTERS.priorities,
-        visibilities: EMPTY_DASHBOARD_FILTERS.visibilities,
-        site: EMPTY_DASHBOARD_FILTERS.site,
-        pagePath: EMPTY_DASHBOARD_FILTERS.pagePath,
-      }).catch(() => undefined)
+      setFilterSearchQuery({ search: "", ...CLEARED_FILTERS }).catch(
+        () => undefined
+      )
     },
     hasActiveFilters: hasFilters || debouncedSearch.length > 0,
     toggleStatus: (value: DashboardFilters["statuses"][number]) =>
@@ -150,15 +190,25 @@ export function useBugReportsFilters() {
     // One priority at a time from the toolbar; an empty value shows all.
     setPriority: (value: DashboardFilters["priorities"][number] | "") =>
       setFilterSearchQuery({
-        priorities: value ? [value] : EMPTY_DASHBOARD_FILTERS.priorities,
+        priorities: value ? [value] : EMPTY_FILTERS.priorities,
       }).catch(() => undefined),
-    // Changing the site clears the page, since pages belong to a site.
-    setSite: (value: string) =>
-      setFilterSearchQuery({ site: value, pagePath: "" }).catch(
-        () => undefined
-      ),
+    // One category at a time from the toolbar; an empty value shows all.
+    setCategory: (value: CategoryFilter | "") =>
+      setFilterSearchQuery({
+        categories: value ? [value] : EMPTY_FILTERS.categories,
+      }).catch(() => undefined),
     setPagePath: (value: string) =>
       setFilterSearchQuery({ pagePath: value }).catch(() => undefined),
+    toggleBrowser: (value: DashboardFilters["browsers"][number]) =>
+      setFilterSearchQuery({
+        browsers: toggleValue(filters.browsers, value),
+      }).catch(() => undefined),
+    toggleDevice: (value: DashboardFilters["devices"][number]) =>
+      setFilterSearchQuery({
+        devices: toggleValue(filters.devices, value),
+      }).catch(() => undefined),
+    setReporter: (value: string) =>
+      setFilterSearchQuery({ reporter: value }).catch(() => undefined),
     toggleVisibility: (value: DashboardFilters["visibilities"][number]) =>
       setFilterSearchQuery({
         visibilities: toggleValue(filters.visibilities, value),

@@ -1,6 +1,11 @@
 import { db } from "@crikket/db"
 import { bugReport } from "@crikket/db/schema/bug-report"
 import {
+  CATEGORY_VALUES,
+  type Category,
+  normalizeCategory,
+} from "@crikket/shared/constants/categories"
+import {
   DEFAULT_PRIORITY,
   PRIORITY_OPTIONS,
   type Priority,
@@ -24,6 +29,8 @@ const priorityValues = Object.values(PRIORITY_OPTIONS) as [
 ]
 
 const tagsInputSchema = z.array(z.string().trim().min(1).max(40)).max(20)
+// null clears the category; leaving it out keeps what the ticket has.
+const categoryInputSchema = z.enum(CATEGORY_VALUES).nullable().optional()
 
 const bugReportUpdateInputSchema = z
   .object({
@@ -31,6 +38,7 @@ const bugReportUpdateInputSchema = z
     title: optionalText(200),
     status: z.enum(statusValues).optional(),
     priority: z.enum(priorityValues).optional(),
+    category: categoryInputSchema,
     visibility: z.enum(visibilityValues).optional(),
     tags: tagsInputSchema.optional(),
   })
@@ -39,6 +47,7 @@ const bugReportUpdateInputSchema = z
       value.title === undefined &&
       value.status === undefined &&
       value.priority === undefined &&
+      value.category === undefined &&
       value.visibility === undefined &&
       value.tags === undefined
     ) {
@@ -54,6 +63,7 @@ const bugReportBulkUpdateInputSchema = z
     ids: z.array(z.string().min(1)).min(1).max(200),
     status: z.enum(statusValues).optional(),
     priority: z.enum(priorityValues).optional(),
+    category: categoryInputSchema,
     visibility: z.enum(visibilityValues).optional(),
     tags: tagsInputSchema.optional(),
   })
@@ -61,6 +71,7 @@ const bugReportBulkUpdateInputSchema = z
     if (
       value.status === undefined &&
       value.priority === undefined &&
+      value.category === undefined &&
       value.visibility === undefined &&
       value.tags === undefined
     ) {
@@ -75,6 +86,7 @@ function buildUpdateValues(input: {
   title?: string
   status?: (typeof statusValues)[number]
   priority?: Priority
+  category?: Category | null
   visibility?: (typeof visibilityValues)[number]
   tags?: string[]
 }) {
@@ -82,6 +94,7 @@ function buildUpdateValues(input: {
     title?: string
     status?: string
     priority?: string
+    category?: string | null
     visibility?: string
     tags?: string[]
   } = {}
@@ -96,6 +109,10 @@ function buildUpdateValues(input: {
 
   if (input.priority !== undefined) {
     values.priority = input.priority
+  }
+
+  if (input.category !== undefined) {
+    values.category = input.category
   }
 
   if (input.visibility !== undefined) {
@@ -129,6 +146,7 @@ export const updateBugReport = protectedProcedure
         title: bugReport.title,
         status: bugReport.status,
         priority: bugReport.priority,
+        category: bugReport.category,
         visibility: bugReport.visibility,
         tags: bugReport.tags,
       })
@@ -145,6 +163,7 @@ export const updateBugReport = protectedProcedure
       priority: priorityValues.includes(report.priority as Priority)
         ? (report.priority as Priority)
         : DEFAULT_PRIORITY,
+      category: normalizeCategory(report.category),
       visibility: isVisibility(report.visibility)
         ? report.visibility
         : visibilityValues[1],

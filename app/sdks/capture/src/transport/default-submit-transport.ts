@@ -11,6 +11,77 @@ const BUG_REPORTS_PATH_SUFFIX = "/bug-reports"
 const CAPTURE_CHALLENGE_REQUIRED_CODE = "CAPTURE_CHALLENGE_REQUIRED"
 const FILE_SIZE_LIMIT_MESSAGE =
   "This recording is too large to upload reliably. Retry with a shorter recording or a screenshot."
+// The server's submit tokens last five minutes; one fetched ahead of time is used for four.
+const PREPARED_TOKEN_MAX_AGE_MS = 4 * 60 * 1000
+
+type CaptureConfig = CaptureSubmitRequest["config"]
+
+interface SubmitToken {
+  // Undefined when the server doesn't ask for one.
+  token: string | undefined
+}
+
+interface PreparedSubmitToken {
+  scope: string
+  startedAt: number
+  // Null if it couldn't be had without the reviewer (a challenge) or at all.
+  result: Promise<SubmitToken | null>
+}
+
+let preparedToken: PreparedSubmitToken | null = null
+
+function tokenScope(config: CaptureConfig): string {
+  return `${config.host}\n${config.submitPath}\n${config.key}`
+}
+
+function isPreparedTokenUsable(
+  prepared: PreparedSubmitToken | null,
+  config: CaptureConfig
+): prepared is PreparedSubmitToken {
+  return (
+    prepared !== null &&
+    prepared.scope === tokenScope(config) &&
+    Date.now() - prepared.startedAt < PREPARED_TOKEN_MAX_AGE_MS
+  )
+}
+
+// Heard: sending a report starts with a request for a submit token, which needs nothing the
+// reviewer types. Asking for it when the review screen opens takes that round trip out of the
+// wait after "Send report". Purely an optimisation: without a usable token the submit asks for
+// one itself, as before. One that is still fresh is kept rather than replaced, so retaking a
+// screenshot several times doesn't use up the token rate limit.
+export function prepareSubmitToken(config: CaptureConfig): void {
+  if (isPreparedTokenUsable(preparedToken, config)) return
+
+  const entry: PreparedSubmitToken = {
+    scope: tokenScope(config),
+    startedAt: Date.now(),
+    result: requestSubmitToken(config, undefined)
+      .then((outcome) =>
+        outcome.kind === "token" ? { token: outcome.token } : null
+      )
+      .catch(() => null),
+  }
+  preparedToken = entry
+  entry.result.then((token) => {
+    if (!token && preparedToken === entry) preparedToken = null
+  })
+}
+
+// A token is good for one submission, so taking it uses it up.
+function takePreparedSubmitToken(
+  config: CaptureConfig
+): Promise<SubmitToken | null> {
+  const prepared = preparedToken
+  preparedToken = null
+  return isPreparedTokenUsable(prepared, config)
+    ? prepared.result
+    : Promise.resolve(null)
+}
+
+export function resetSubmitTransportState(): void {
+  preparedToken = null
+}
 
 export async function defaultSubmitTransport(
   request: CaptureSubmitRequest
@@ -22,18 +93,37 @@ export async function defaultSubmitTransport(
   const finalizeUrl = `${request.config.host}${resolveFinalizePath(
     request.config.submitPath
   )}`
-  const submitToken = await fetchCaptureSubmitToken(request)
-  const uploadSessionResponse = await fetch(uploadSessionUrl, {
-    method: "POST",
-    headers: {
-      ...(submitToken ? { "x-crikket-capture-token": submitToken } : undefined),
-      "content-type": "application/json",
-      "x-crikket-public-key": request.config.key,
-    },
-    body: JSON.stringify(uploadSessionRequest),
-    credentials: "omit",
-    mode: "cors",
-  })
+  // Compressing the activity log needs nothing from the server, so it runs alongside the first
+  // requests instead of between the two uploads.
+  const debuggerArtifactReady = buildDebuggerArtifactForUpload(
+    request.report.debuggerPayload
+  )
+  // Reported where it is awaited below; if an earlier step fails first, not at all.
+  debuggerArtifactReady.catch(() => undefined)
+
+  const createUploadSession = (token: string | undefined) =>
+    fetch(uploadSessionUrl, {
+      method: "POST",
+      headers: {
+        ...(token ? { "x-crikket-capture-token": token } : undefined),
+        "content-type": "application/json",
+        "x-crikket-public-key": request.config.key,
+      },
+      body: JSON.stringify(uploadSessionRequest),
+      credentials: "omit",
+      mode: "cors",
+    })
+
+  const prepared = await takePreparedSubmitToken(request.config)
+  let uploadSessionResponse = await createUploadSession(
+    prepared ? prepared.token : await fetchCaptureSubmitToken(request)
+  )
+  if (prepared && uploadSessionResponse.status === 401) {
+    // The token fetched ahead of time was turned down (expired, say): get one now.
+    uploadSessionResponse = await createUploadSession(
+      await fetchCaptureSubmitToken(request)
+    )
+  }
 
   const uploadSessionPayload = await parseResponsePayload(uploadSessionResponse)
   if (!uploadSessionResponse.ok) {
@@ -46,23 +136,22 @@ export async function defaultSubmitTransport(
   }
 
   const uploadSession = parseUploadSessionPayload(uploadSessionPayload)
-  await uploadArtifactToStorage(
-    uploadSession.captureUpload,
-    request.report.media
-  )
-
-  const debuggerArtifact = await buildDebuggerArtifactForUpload(
-    request.report.debuggerPayload
-  )
-  if (uploadSession.debuggerUpload && debuggerArtifact) {
-    await uploadArtifactToStorage(
-      uploadSession.debuggerUpload,
-      debuggerArtifact.blob,
-      {
-        contentEncoding: debuggerArtifact.contentEncoding,
+  // The picture and the activity log go to storage side by side rather than one after the other.
+  const [, debuggerArtifact] = await Promise.all([
+    uploadArtifactToStorage(uploadSession.captureUpload, request.report.media),
+    debuggerArtifactReady.then(async (artifact) => {
+      if (uploadSession.debuggerUpload && artifact) {
+        await uploadArtifactToStorage(
+          uploadSession.debuggerUpload,
+          artifact.blob,
+          {
+            contentEncoding: artifact.contentEncoding,
+          }
+        )
       }
-    )
-  }
+      return artifact
+    }),
+  ])
 
   const response = await fetch(finalizeUrl, {
     method: "POST",
@@ -106,6 +195,7 @@ export async function defaultSubmitTransport(
 function buildUploadSessionRequest(request: CaptureSubmitRequest): {
   attachmentType: CaptureSubmitRequest["report"]["captureType"]
   captureContentType?: string
+  category: NonNullable<CaptureSubmitRequest["report"]["category"]> | null
   description: string
   debuggerSummary: CaptureSubmitRequest["report"]["debuggerSummary"]
   deviceInfo?: CaptureSubmitRequest["report"]["deviceInfo"]
@@ -129,6 +219,7 @@ function buildUploadSessionRequest(request: CaptureSubmitRequest): {
     title: request.report.title,
     description: request.report.description,
     priority: request.report.priority,
+    category: request.report.category ?? null,
     visibility: request.report.visibility,
     reporter: request.report.reporter,
     attachmentType: request.report.captureType,
@@ -145,53 +236,67 @@ function buildUploadSessionRequest(request: CaptureSubmitRequest): {
   }
 }
 
+type SubmitTokenOutcome =
+  | { kind: "token"; token: string | undefined }
+  | { kind: "challenge"; siteKey: string }
+
+// One request to the token route. Throws if the server refuses outright.
+async function requestSubmitToken(
+  config: CaptureConfig,
+  turnstileToken: string | undefined
+): Promise<SubmitTokenOutcome> {
+  const tokenUrl = `${config.host}${resolveCaptureTokenPath(config.submitPath)}`
+  const response = await fetch(tokenUrl, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-crikket-public-key": config.key,
+    },
+    body: JSON.stringify(
+      turnstileToken ? { turnstileToken } : { turnstileToken: undefined }
+    ),
+    credentials: "omit",
+    mode: "cors",
+  })
+
+  if (
+    response.status === 404 ||
+    response.status === 405 ||
+    response.status === 501
+  ) {
+    return { kind: "token", token: undefined }
+  }
+
+  const responsePayload = await parseResponsePayload(response)
+  if (response.ok) {
+    return { kind: "token", token: resolveString(responsePayload, ["token"]) }
+  }
+
+  const challenge = resolveChallenge(responsePayload)
+  if (
+    isChallengeRequired(responsePayload) &&
+    challenge?.provider === "turnstile" &&
+    challenge.siteKey &&
+    !turnstileToken
+  ) {
+    return { kind: "challenge", siteKey: challenge.siteKey }
+  }
+
+  throw new Error(getResponseErrorMessage(responsePayload, response.status))
+}
+
 async function fetchCaptureSubmitToken(
   request: CaptureSubmitRequest
 ): Promise<string | undefined> {
-  const tokenUrl = `${request.config.host}${resolveCaptureTokenPath(
-    request.config.submitPath
-  )}`
   let turnstileToken: string | undefined
 
   for (const _attempt of [0, 1] as const) {
-    const response = await fetch(tokenUrl, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-crikket-public-key": request.config.key,
-      },
-      body: JSON.stringify(
-        turnstileToken ? { turnstileToken } : { turnstileToken: undefined }
-      ),
-      credentials: "omit",
-      mode: "cors",
-    })
-
-    if (
-      response.status === 404 ||
-      response.status === 405 ||
-      response.status === 501
-    ) {
-      return undefined
+    const outcome = await requestSubmitToken(request.config, turnstileToken)
+    if (outcome.kind === "token") {
+      return outcome.token
     }
 
-    const responsePayload = await parseResponsePayload(response)
-    if (response.ok) {
-      return resolveString(responsePayload, ["token"])
-    }
-
-    const challenge = resolveChallenge(responsePayload)
-    if (
-      isChallengeRequired(responsePayload) &&
-      challenge?.provider === "turnstile" &&
-      challenge.siteKey &&
-      !turnstileToken
-    ) {
-      turnstileToken = await runTurnstileChallenge(challenge.siteKey)
-      continue
-    }
-
-    throw new Error(getResponseErrorMessage(responsePayload, response.status))
+    turnstileToken = await runTurnstileChallenge(outcome.siteKey)
   }
 
   throw new Error("Anti-bot verification could not be completed.")

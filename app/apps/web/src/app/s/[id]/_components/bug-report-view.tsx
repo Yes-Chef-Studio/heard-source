@@ -291,6 +291,7 @@ function renderBugReportLoadedView(input: {
             tags: input.data.tags,
             status: input.data.status,
             priority: input.data.priority,
+            category: input.data.category,
             visibility: input.data.visibility,
           }}
         />

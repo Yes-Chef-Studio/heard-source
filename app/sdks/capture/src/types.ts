@@ -2,6 +2,13 @@ import type * as eagerCapture from "./eager"
 
 export type CaptureType = "video" | "screenshot"
 export type CapturePriority = "high" | "normal" | "low"
+export type CaptureCategory =
+  | "copy"
+  | "functionality"
+  | "visual_assets"
+  | "broken_link"
+  | "design_mismatch"
+  | "localization"
 export type CaptureReportVisibility = "public" | "private"
 
 export type DebuggerActionType =
@@ -103,6 +110,8 @@ export interface CaptureSubmissionDraft {
   description: string
   // Empty until the reporter picks one: the form asks for it.
   priority: CapturePriority | ""
+  // Optional: empty (or left out) means no category.
+  category?: CaptureCategory | ""
   visibility?: CaptureReportVisibility
   // Who is leaving the feedback. Required in the widget form, remembered per browser.
   reporterName?: string
@@ -116,6 +125,7 @@ export interface CaptureSubmitRequest {
     title: string
     description: string
     priority: CapturePriority
+    category?: CaptureCategory | null
     visibility: CaptureReportVisibility
     reporter?: { name: string; email?: string }
     pageUrl: string

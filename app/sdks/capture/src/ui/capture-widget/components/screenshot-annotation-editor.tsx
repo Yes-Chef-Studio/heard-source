@@ -6,6 +6,7 @@ import {
   useState,
 } from "react"
 import type { CaptureUiState } from "../../types"
+import { useAnnotationHistory } from "../hooks/use-annotation-history"
 import {
   clampAnnotationPoint,
   drawScreenshotAnnotations,
@@ -19,6 +20,7 @@ import {
   DrawIcon,
   HighlightIcon,
   RectangleIcon,
+  RedoIcon,
   ResetIcon,
   UndoIcon,
 } from "./icons"
@@ -33,6 +35,12 @@ const DEFAULT_TOOL: AnnotationTool = "draw"
 const MIN_FIT_HEIGHT = 240
 const MIN_FIT_WIDTH = 560
 const DEFAULT_COLOR = screenshotAnnotationColorOptions[0].value
+// Shown in the buttons' tooltips.
+const IS_APPLE_DEVICE =
+  typeof navigator !== "undefined" &&
+  /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || "")
+const UNDO_TITLE = IS_APPLE_DEVICE ? "Undo (\u2318Z)" : "Undo (Ctrl+Z)"
+const REDO_TITLE = IS_APPLE_DEVICE ? "Redo (\u21e7\u2318Z)" : "Redo (Ctrl+Y)"
 
 export function ScreenshotAnnotationEditor(props: {
   annotations: ScreenshotAnnotation[]
@@ -159,12 +167,22 @@ export function ScreenshotAnnotationEditor(props: {
     })
   }, [displayHeight, displayWidth, loadedImage, renderedAnnotations])
 
+  const hasAnnotations = props.annotations.length > 0
+  // Nothing to draw on until the screenshot is here.
+  const toolsDisabled = props.disabled || !loadedImage
+  const history = useAnnotationHistory({
+    annotations: props.annotations,
+    enabled: !toolsDisabled,
+    isDrawing: () => draftAnnotationRef.current !== null,
+    onChange: props.onChange,
+  })
+
   const commitDraftAnnotation = (annotation: ScreenshotAnnotation | null) => {
     if (!annotation) {
       return
     }
 
-    props.onChange([...annotationsRef.current, annotation])
+    history.commit([...annotationsRef.current, annotation])
     setDraftAnnotation(null)
     draftAnnotationRef.current = null
     rectangleOriginRef.current = null
@@ -289,10 +307,6 @@ export function ScreenshotAnnotationEditor(props: {
     commitDraftAnnotation(finalizedDraft)
   }
 
-  const hasAnnotations = props.annotations.length > 0
-  // Nothing to draw on until the screenshot is here.
-  const toolsDisabled = props.disabled || !loadedImage
-
   return (
     <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)]">
       <div className="grid gap-2 pb-4">
@@ -361,23 +375,34 @@ export function ScreenshotAnnotationEditor(props: {
             <Button
               aria-label="Undo"
               className="gap-2 border-0"
-              disabled={toolsDisabled || !hasAnnotations}
-              onClick={() => {
-                props.onChange(props.annotations.slice(0, -1))
-              }}
+              disabled={toolsDisabled || !history.canUndo}
+              onClick={history.undo}
               size="icon"
-              title="Undo"
+              title={UNDO_TITLE}
               type="button"
               variant="outline"
             >
               <UndoIcon className="h-4 w-4" />
             </Button>
             <Button
+              aria-label="Redo"
+              className="gap-2 border-0"
+              disabled={toolsDisabled || !history.canRedo}
+              onClick={history.redo}
+              size="icon"
+              title={REDO_TITLE}
+              type="button"
+              variant="outline"
+            >
+              <RedoIcon className="h-4 w-4" />
+            </Button>
+            <Button
               aria-label="Clear all markup"
               className="gap-2 border-0"
               disabled={toolsDisabled || !hasAnnotations}
               onClick={() => {
-                props.onChange([])
+                // A step like any other: undo brings the markup back.
+                history.commit([])
                 setDraftAnnotation(null)
               }}
               size="icon"

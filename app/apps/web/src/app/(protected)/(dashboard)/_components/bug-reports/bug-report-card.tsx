@@ -6,6 +6,7 @@ import {
   type BugReportStatus,
   type BugReportVisibility,
 } from "@crikket/shared/constants/bug-report"
+import type { Category } from "@crikket/shared/constants/categories"
 import { reportNonFatalError } from "@crikket/shared/lib/errors"
 import { Badge } from "@crikket/ui/components/ui/badge"
 import { Button } from "@crikket/ui/components/ui/button"
@@ -46,10 +47,14 @@ import {
   useState,
 } from "react"
 import { toast } from "sonner"
+import {
+  CategoryPicker,
+  PriorityBadge,
+} from "@/components/bug-reports/category-picker"
 import { EditBugReportSheet } from "@/components/bug-reports/edit-bug-report-sheet"
 import { StatusPicker } from "@/components/bug-reports/status-picker"
 
-import { formatPriorityLabel, VISIBILITY_OPTIONS } from "./filters"
+import { VISIBILITY_OPTIONS } from "./filters"
 import type { BugReportListItem } from "./types"
 
 interface BugReportCardProps {
@@ -62,6 +67,7 @@ interface BugReportCardProps {
   onReportUpdated: () => Promise<void>
   onUpdateReport: (input: {
     status?: BugReportStatus
+    category?: Category | null
     visibility?: BugReportVisibility
   }) => void
 }
@@ -252,7 +258,12 @@ export function BugReportCard({
               onChange={(status) => onUpdateReport({ status })}
               status={report.status}
             />
-            <Chip>{formatPriorityLabel(report.priority)}</Chip>
+            <PriorityBadge priority={report.priority} />
+            <CategoryPicker
+              category={report.category}
+              disabled={isMutating}
+              onChange={(category) => onUpdateReport({ category })}
+            />
             {report.submissionStatus !==
             BUG_REPORT_SUBMISSION_STATUS_OPTIONS.ready ? (
               <Chip>
@@ -291,6 +302,7 @@ export function BugReportCard({
           tags: report.tags,
           status: report.status,
           priority: report.priority,
+          category: report.category,
           visibility: report.visibility,
         }}
       />

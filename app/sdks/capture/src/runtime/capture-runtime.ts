@@ -390,7 +390,19 @@ export class CaptureSdkRuntime implements CaptureRuntimeController {
       warnings: review.warnings,
       summary: review.debuggerSummary,
     })
+    this.prepareSubmit()
     return blob
+  }
+
+  // Heard: the capture is ready to review, so a report is likely to follow. Get the submit step's
+  // code and its first request out of the way while the reviewer writes it up.
+  private prepareSubmit(): void {
+    const config = this.runtimeConfig
+    if (!config) return
+    const submitTransport = this.submitTransport
+    import("./submit-captured-report")
+      .then((module) => module.prepareSubmit({ config, submitTransport }))
+      .catch(() => undefined)
   }
 
   // Stops waiting for the screenshot in progress, and for the one started ahead of time.
@@ -504,6 +516,7 @@ export class CaptureSdkRuntime implements CaptureRuntimeController {
       warnings: review.warnings,
       summary: review.debuggerSummary,
     })
+    this.prepareSubmit()
   }
 
   private abortActiveRecording(): void {

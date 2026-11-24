@@ -48,12 +48,15 @@ export function BugReportsList({ projectId }: { projectId?: string } = {}) {
     >
       <BugReportsToolbar
         filters={filtersState.filters}
+        onCategoryChange={filtersState.setCategory}
         onClearFilters={filtersState.clearFilters}
         onPagePathChange={filtersState.setPagePath}
         onPriorityChange={filtersState.setPriority}
+        onReporterChange={filtersState.setReporter}
         onSearchChange={filtersState.setSearchValue}
-        onSiteChange={filtersState.setSite}
         onSortChange={filtersState.setSort}
+        onToggleBrowser={filtersState.toggleBrowser}
+        onToggleDevice={filtersState.toggleDevice}
         onToggleStatus={filtersState.toggleStatus}
         onToggleVisibility={filtersState.toggleVisibility}
         projectId={projectId}
@@ -65,12 +68,14 @@ export function BugReportsList({ projectId }: { projectId?: string } = {}) {
       <SelectionActionBar
         actions={
           <BugReportsBulkActions
+            bulkCategory={actionsState.bulkCategory}
             bulkPriority={actionsState.bulkPriority}
             bulkStatus={actionsState.bulkStatus}
             bulkTagsInput={actionsState.bulkTagsInput}
             bulkVisibility={actionsState.bulkVisibility}
             isMutating={actionsState.isMutating}
             onApplyUpdates={actionsState.handleBulkUpdate}
+            onBulkCategoryChange={actionsState.setBulkCategory}
             onBulkPriorityChange={actionsState.setBulkPriority}
             onBulkStatusChange={actionsState.setBulkStatus}
             onBulkTagsChange={actionsState.setBulkTagsInput}

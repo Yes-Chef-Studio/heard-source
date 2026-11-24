@@ -15,6 +15,7 @@ import {
 } from "@crikket/bug-reports/procedures/get-bug-report-debugger"
 import {
   getBugReportDashboardStats,
+  listBugReportReporters,
   listBugReportSites,
   listBugReports,
 } from "@crikket/bug-reports/procedures/list-bug-reports"
@@ -62,6 +63,7 @@ export const bugReportRouter = {
   getNetworkRequestPayload: getBugReportNetworkRequestPayload,
   getDashboardStats: getBugReportDashboardStats,
   listSites: listBugReportSites,
+  listReporters: listBugReportReporters,
   delete: deleteBugReport,
   deleteBulk: deleteBugReportsBulk,
   update: updateBugReport,

@@ -33,6 +33,7 @@ export const bugReport = pgTable(
     description: text("description"),
     status: text("status").default("to_do").notNull(), // see BUG_REPORT_STATUSES in @crikket/shared
     priority: text("priority").default("normal").notNull(), // high, normal, low
+    category: text("category"), // optional; see CATEGORIES in @crikket/shared
     tags: text("tags").array(),
     url: text("url"),
     attachmentType: text("attachment_type"), // "video" or "screenshot"
@@ -93,6 +94,7 @@ export const bugReportUploadSession = pgTable(
     title: text("title"),
     description: text("description"),
     priority: text("priority").default("normal").notNull(),
+    category: text("category"),
     tags: text("tags").array(),
     url: text("url"),
     attachmentType: text("attachment_type").notNull(),

@@ -37,8 +37,12 @@ export function useBugReportsData({
           filters.priorities.length > 0 ? filters.priorities : undefined,
         visibilities:
           filters.visibilities.length > 0 ? filters.visibilities : undefined,
-        site: filters.site || undefined,
-        pagePath: (filters.site && filters.pagePath) || undefined,
+        categories:
+          filters.categories.length > 0 ? filters.categories : undefined,
+        pagePath: filters.pagePath || undefined,
+        browsers: filters.browsers.length > 0 ? filters.browsers : undefined,
+        devices: filters.devices.length > 0 ? filters.devices : undefined,
+        reporter: filters.reporter || undefined,
         projectId,
       }),
       getNextPageParam: (lastPage) =>

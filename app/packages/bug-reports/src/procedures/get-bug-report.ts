@@ -1,5 +1,6 @@
 import { db } from "@crikket/db"
 import { bugReport } from "@crikket/db/schema/bug-report"
+import { normalizeCategory } from "@crikket/shared/constants/categories"
 import {
   DEFAULT_PRIORITY,
   PRIORITY_OPTIONS,
@@ -67,6 +68,7 @@ export const getBugReportById = o
       description: report.description,
       status,
       priority,
+      category: normalizeCategory(report.category),
       tags: Array.isArray(report.tags) ? report.tags : [],
       url: report.url,
       attachmentUrl,

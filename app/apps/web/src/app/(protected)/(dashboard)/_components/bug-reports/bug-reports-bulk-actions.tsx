@@ -4,6 +4,11 @@ import type {
   BugReportStatus,
   BugReportVisibility,
 } from "@crikket/shared/constants/bug-report"
+import {
+  CATEGORIES,
+  type Category,
+  NO_CATEGORY_LABEL,
+} from "@crikket/shared/constants/categories"
 import type { Priority } from "@crikket/shared/constants/priorities"
 import { Button } from "@crikket/ui/components/ui/button"
 import {
@@ -26,7 +31,10 @@ import {
 import { SlidersHorizontal, Trash2 } from "lucide-react"
 import { useState } from "react"
 
+import { ColorLabel } from "@/components/bug-reports/category-picker"
+
 import {
+  formatCategoryLabel,
   formatPriorityLabel,
   formatStatusLabel,
   formatVisibilityLabel,
@@ -38,11 +46,14 @@ import {
 interface BugReportsBulkActionsProps {
   bulkStatus: BugReportStatus | ""
   bulkPriority: Priority | ""
+  // "none" clears the category on the selected reports.
+  bulkCategory: Category | "none" | ""
   bulkVisibility: BugReportVisibility | ""
   bulkTagsInput: string
   isMutating: boolean
   onBulkStatusChange: (value: BugReportStatus | "") => void
   onBulkPriorityChange: (value: Priority | "") => void
+  onBulkCategoryChange: (value: Category | "none" | "") => void
   onBulkVisibilityChange: (value: BugReportVisibility | "") => void
   onBulkTagsChange: (value: string) => void
   onApplyUpdates: () => Promise<void>
@@ -52,11 +63,13 @@ interface BugReportsBulkActionsProps {
 export function BugReportsBulkActions({
   bulkStatus,
   bulkPriority,
+  bulkCategory,
   bulkVisibility,
   bulkTagsInput,
   isMutating,
   onBulkStatusChange,
   onBulkPriorityChange,
+  onBulkCategoryChange,
   onBulkVisibilityChange,
   onBulkTagsChange,
   onApplyUpdates,
@@ -67,6 +80,9 @@ export function BugReportsBulkActions({
   const priorityLabel = bulkPriority
     ? formatPriorityLabel(bulkPriority)
     : "Priority"
+  const categoryLabel = bulkCategory
+    ? formatCategoryLabel(bulkCategory)
+    : "Category"
   const visibilityLabel = bulkVisibility
     ? formatVisibilityLabel(bulkVisibility)
     : "Visibility"
@@ -74,6 +90,7 @@ export function BugReportsBulkActions({
   const hasPendingChanges =
     Boolean(bulkStatus) ||
     Boolean(bulkPriority) ||
+    Boolean(bulkCategory) ||
     Boolean(bulkVisibility) ||
     bulkTagsInput.trim().length > 0
 
@@ -129,9 +146,28 @@ export function BugReportsBulkActions({
               <SelectContent>
                 {PRIORITY_FILTER_OPTIONS.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
-                    {option.label}
+                    <ColorLabel color={option.color} label={option.label} />
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              onValueChange={(value) =>
+                onBulkCategoryChange(value as Category | "none")
+              }
+              value={bulkCategory}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue>{categoryLabel}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {CATEGORIES.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    <ColorLabel color={option.color} label={option.label} />
+                  </SelectItem>
+                ))}
+                <SelectItem value="none">{NO_CATEGORY_LABEL}</SelectItem>
               </SelectContent>
             </Select>
 
@@ -141,7 +177,7 @@ export function BugReportsBulkActions({
               }
               value={bulkVisibility}
             >
-              <SelectTrigger className="w-full sm:col-span-2">
+              <SelectTrigger className="w-full">
                 <SelectValue>{visibilityLabel}</SelectValue>
               </SelectTrigger>
               <SelectContent>

@@ -10,6 +10,12 @@ import {
   DEFAULT_BUG_REPORT_STATUS,
 } from "@crikket/shared/constants/bug-report"
 import {
+  CATEGORY_VALUES,
+  type Category,
+  normalizeCategory,
+} from "@crikket/shared/constants/categories"
+import { BROWSER_VALUES, DEVICE_VALUES } from "@crikket/shared/constants/device"
+import {
   DEFAULT_PRIORITY,
   PRIORITY_OPTIONS,
   type Priority,
@@ -28,9 +34,17 @@ import {
   inArray,
   isNull,
   or,
+  type SQL,
   sql,
 } from "drizzle-orm"
 import { z } from "zod"
+import {
+  reportBrowser,
+  reportDevice,
+  reportPersonEmail,
+  reportPersonKey,
+  reportPersonName,
+} from "../lib/report-facets"
 import { isExpiringSignedUrl, resolveCaptureUrl } from "../lib/storage"
 import {
   formatDurationMs,
@@ -80,6 +94,8 @@ export interface BugReportListItem {
   debuggerIngestionStatus: BugReportDebuggerIngestionStatus
   debuggerIngestionError: string | undefined
   priority: Priority
+  // Null when the ticket has no category.
+  category: Category | null
   tags: string[]
   url: string | undefined
   createdAt: string
@@ -117,8 +133,26 @@ const listBugReportsInputSchema = z
       .array(z.enum(visibilityValues))
       .max(visibilityValues.length)
       .optional(),
+    // "none" lists tickets without a category.
+    categories: z
+      .array(z.enum([...CATEGORY_VALUES, "none"]))
+      .max(CATEGORY_VALUES.length + 1)
+      .optional(),
+    // Kept for old links and API callers; the dashboard no longer sends it.
     site: z.string().max(500).optional(),
+    // Page path, with or without a site.
     pagePath: z.string().max(2000).optional(),
+    // Derived from device_info; see @crikket/shared/constants/device for the rule.
+    browsers: z
+      .array(z.enum(BROWSER_VALUES))
+      .max(BROWSER_VALUES.length)
+      .optional(),
+    devices: z
+      .array(z.enum(DEVICE_VALUES))
+      .max(DEVICE_VALUES.length)
+      .optional(),
+    // A reporter key from listReporters: their email, or their name when there is no email.
+    reporter: z.string().trim().min(1).max(200).optional(),
     // Project = capture key. "none" lists reports not linked to any project.
     projectId: z.string().min(1).max(100).optional(),
     sort: z.enum(sortValues).default(BUG_REPORT_SORT_OPTIONS.newest),
@@ -207,6 +241,7 @@ interface BugReportListRecord {
   visibility: string
   status: string
   priority: string
+  category: string | null
   tags: string[] | null
   url: string | null
   createdAt: Date
@@ -287,12 +322,116 @@ async function mapBugReportListItem(
         : BUG_REPORT_DEBUGGER_INGESTION_STATUS_OPTIONS.completed,
     debuggerIngestionError: report.debuggerIngestionError ?? undefined,
     priority: normalizePriority(report.priority),
+    category: normalizeCategory(report.category),
     tags: Array.isArray(report.tags) ? report.tags : [],
     url: report.url ?? undefined,
     uploader,
     createdAt: report.createdAt.toISOString(),
     updatedAt: report.updatedAt.toISOString(),
   }
+}
+
+type ListBugReportsInput = z.infer<typeof listBugReportsInputSchema>
+
+function buildSearchFilters(input: ListBugReportsInput): SQL[] {
+  if (!input?.search) {
+    return []
+  }
+  const searchValue = `%${input.search}%`
+  const searchCondition = or(
+    ilike(bugReport.title, searchValue),
+    ilike(bugReport.description, searchValue),
+    ilike(bugReport.url, searchValue),
+    ilike(bugReport.reporterName, searchValue),
+    ilike(bugReport.reporterEmail, searchValue)
+  )
+  return searchCondition ? [searchCondition] : []
+}
+
+// Project = capture key. "none" means reports not linked to any project.
+function buildProjectFilter(projectId: string | undefined): SQL | undefined {
+  if (!projectId) {
+    return
+  }
+  return projectId === "none"
+    ? isNull(bugReport.capturePublicKeyId)
+    : eq(bugReport.capturePublicKeyId, projectId)
+}
+
+function buildCategoryFilter(
+  categories: NonNullable<NonNullable<ListBugReportsInput>["categories"]>
+): SQL | undefined {
+  const slugs = Array.from(
+    new Set(categories.filter((value) => value !== "none"))
+  )
+  const conditions = [
+    slugs.length > 0 ? inArray(bugReport.category, slugs) : undefined,
+    categories.includes("none") ? isNull(bugReport.category) : undefined,
+  ]
+  return or(...conditions)
+}
+
+// Status, priority, category, visibility and project: plain column filters.
+function buildFieldFilters(input: ListBugReportsInput): SQL[] {
+  const filters: Array<SQL | undefined> = []
+
+  if (input?.statuses && input.statuses.length > 0) {
+    filters.push(inArray(bugReport.status, Array.from(new Set(input.statuses))))
+  }
+
+  if (input?.priorities && input.priorities.length > 0) {
+    filters.push(
+      inArray(bugReport.priority, Array.from(new Set(input.priorities)))
+    )
+  }
+
+  if (input?.categories && input.categories.length > 0) {
+    filters.push(buildCategoryFilter(input.categories))
+  }
+
+  if (input?.visibilities && input.visibilities.length > 0) {
+    filters.push(
+      inArray(bugReport.visibility, Array.from(new Set(input.visibilities)))
+    )
+  }
+
+  filters.push(buildProjectFilter(input?.projectId))
+
+  return filters.filter((filter): filter is SQL => filter !== undefined)
+}
+
+// Site, page, browser, device and person: derived from the URL, device_info and the reporter.
+function buildFacetFilters(input: ListBugReportsInput): SQL[] {
+  const filters: SQL[] = []
+
+  if (input?.site) {
+    filters.push(sql`${reportSite} = ${input.site.toLowerCase()}`)
+  }
+
+  if (input?.pagePath) {
+    // Reports without a URL have no page, though reportPage reads "/" for them.
+    filters.push(
+      sql`${reportSite} is not null and ${reportPage} = ${input.pagePath}`
+    )
+  }
+
+  if (input?.browsers && input.browsers.length > 0) {
+    filters.push(
+      inArray(reportBrowser, Array.from(new Set<string>(input.browsers)))
+    )
+  }
+
+  if (input?.devices && input.devices.length > 0) {
+    filters.push(
+      inArray(reportDevice, Array.from(new Set<string>(input.devices)))
+    )
+  }
+
+  if (input?.reporter) {
+    filters.push(sql`${reportPersonKey} = ${input.reporter.toLowerCase()}`)
+  }
+
+  return filters
 }
 
 export const listBugReports = protectedProcedure
@@ -302,54 +441,12 @@ export const listBugReports = protectedProcedure
       const activeOrgId = requireActiveOrgId(context.session)
       const { page, perPage, offset, limit } = normalizePagination(input)
 
-      const filters = [eq(bugReport.organizationId, activeOrgId)]
-
-      if (input?.search) {
-        const searchValue = `%${input.search}%`
-        const searchCondition = or(
-          ilike(bugReport.title, searchValue),
-          ilike(bugReport.description, searchValue),
-          ilike(bugReport.url, searchValue),
-          ilike(bugReport.reporterName, searchValue),
-          ilike(bugReport.reporterEmail, searchValue)
-        )
-        if (searchCondition) {
-          filters.push(searchCondition)
-        }
-      }
-
-      if (input?.statuses && input.statuses.length > 0) {
-        filters.push(
-          inArray(bugReport.status, Array.from(new Set(input.statuses)))
-        )
-      }
-
-      if (input?.priorities && input.priorities.length > 0) {
-        filters.push(
-          inArray(bugReport.priority, Array.from(new Set(input.priorities)))
-        )
-      }
-
-      if (input?.visibilities && input.visibilities.length > 0) {
-        filters.push(
-          inArray(bugReport.visibility, Array.from(new Set(input.visibilities)))
-        )
-      }
-
-      if (input?.projectId) {
-        filters.push(
-          input.projectId === "none"
-            ? isNull(bugReport.capturePublicKeyId)
-            : eq(bugReport.capturePublicKeyId, input.projectId)
-        )
-      }
-
-      if (input?.site) {
-        filters.push(sql`${reportSite} = ${input.site.toLowerCase()}`)
-        if (input.pagePath) {
-          filters.push(sql`${reportPage} = ${input.pagePath}`)
-        }
-      }
+      const filters = [
+        eq(bugReport.organizationId, activeOrgId),
+        ...buildSearchFilters(input),
+        ...buildFieldFilters(input),
+        ...buildFacetFilters(input),
+      ]
 
       const whereClause =
         filters.length === 1 ? filters[0] : (and(...filters) ?? filters[0])
@@ -441,9 +538,7 @@ export const listBugReportSites = protectedProcedure
         and(
           eq(bugReport.organizationId, activeOrgId),
           sql`${reportSite} is not null`,
-          input?.projectId
-            ? eq(bugReport.capturePublicKeyId, input.projectId)
-            : undefined
+          buildProjectFilter(input?.projectId)
         )
       )
       .groupBy(reportSite, reportPage)
@@ -467,4 +562,57 @@ export const listBugReportSites = protectedProcedure
         pages: entry.pages.sort((a, b) => a.page.localeCompare(b.page)),
       }))
       .sort((a, b) => b.count - a.count || a.site.localeCompare(b.site))
+  })
+
+export interface BugReportReporterSummary {
+  // What the list filter takes: the email, or the name when there is no email. Lower-cased.
+  key: string
+  name: string | undefined
+  email: string | undefined
+  count: number
+}
+
+// Everyone who has filed a report in scope, with counts, for the dashboard's person filter.
+export const listBugReportReporters = protectedProcedure
+  .input(
+    z.object({ projectId: z.string().min(1).max(100).optional() }).optional()
+  )
+  .handler(async ({ context, input }): Promise<BugReportReporterSummary[]> => {
+    const activeOrgId = requireActiveOrgId(context.session)
+
+    const rows = await db
+      .select({
+        key: reportPersonKey,
+        name: sql<string | null>`max(${reportPersonName})`,
+        email: sql<string | null>`max(${reportPersonEmail})`,
+        value: count(),
+      })
+      .from(bugReport)
+      .where(
+        and(
+          eq(bugReport.organizationId, activeOrgId),
+          sql`${reportPersonKey} is not null`,
+          buildProjectFilter(input?.projectId)
+        )
+      )
+      .groupBy(reportPersonKey)
+
+    return rows
+      .flatMap((row) =>
+        row.key
+          ? [
+              {
+                key: row.key,
+                name: row.name ?? undefined,
+                email: row.email ?? undefined,
+                count: normalizeInt(row.value),
+              },
+            ]
+          : []
+      )
+      .sort(
+        (a, b) =>
+          (a.name ?? a.key).localeCompare(b.name ?? b.key) ||
+          a.key.localeCompare(b.key)
+      )
   })

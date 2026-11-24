@@ -6,6 +6,17 @@ import {
   type BugReportStatus,
   type BugReportVisibility,
 } from "@crikket/shared/constants/bug-report"
+import {
+  CATEGORIES,
+  type Category,
+  NO_CATEGORY_LABEL,
+} from "@crikket/shared/constants/categories"
+import {
+  BROWSERS,
+  type Browser,
+  DEVICES,
+  type Device,
+} from "@crikket/shared/constants/device"
 import { PRIORITIES, type Priority } from "@crikket/shared/constants/priorities"
 
 export const STATUS_OPTIONS: Array<{ value: BugReportStatus; label: string }> =
@@ -14,10 +25,31 @@ export const STATUS_OPTIONS: Array<{ value: BugReportStatus; label: string }> =
 export const PRIORITY_FILTER_OPTIONS: Array<{
   value: Priority
   label: string
-}> = PRIORITIES.map(({ value, label, description }) => ({
+  color: string
+}> = PRIORITIES.map(({ value, label, description, color }) => ({
   value,
   label: `${label}: ${description}`,
+  color,
 }))
+
+// "none" filters to tickets without a category.
+export type CategoryFilter = Category | "none"
+export const NO_CATEGORY_FILTER = "none" satisfies CategoryFilter
+
+export const CATEGORY_FILTER_OPTIONS: Array<{
+  value: CategoryFilter
+  label: string
+  color?: string
+}> = [
+  ...CATEGORIES.map(({ value, label, color }) => ({ value, label, color })),
+  { value: NO_CATEGORY_FILTER, label: NO_CATEGORY_LABEL },
+]
+
+export const BROWSER_OPTIONS: ReadonlyArray<{ value: Browser; label: string }> =
+  BROWSERS
+
+export const DEVICE_OPTIONS: ReadonlyArray<{ value: Device; label: string }> =
+  DEVICES
 
 export const VISIBILITY_OPTIONS: Array<{
   value: BugReportVisibility
@@ -44,24 +76,58 @@ export const SORT_OPTIONS: Array<{ value: BugReportSort; label: string }> = [
 export interface DashboardFilters {
   statuses: BugReportStatus[]
   priorities: Priority[]
+  categories: CategoryFilter[]
   visibilities: BugReportVisibility[]
-  // Heard: site (scheme + host) and page path the report was filed on. Empty means all.
-  site: string
+  // Heard: the page path the report was filed on, across the sites in scope. Empty means all.
   pagePath: string
+  // Derived from the report's user agent and viewport; see @crikket/shared/constants/device.
+  browsers: Browser[]
+  devices: Device[]
+  // A reporter key from listReporters (email, or name when there is no email). Empty means all.
+  reporter: string
 }
 
 export const EMPTY_FILTERS: DashboardFilters = {
   statuses: [],
   priorities: [],
+  categories: [],
   visibilities: [],
-  site: "",
   pagePath: "",
+  browsers: [],
+  devices: [],
+  reporter: "",
 }
 
-const URL_SCHEME = /^https?:\/\//
+export function countActiveFilters(filters: DashboardFilters): number {
+  return (
+    filters.statuses.length +
+    filters.priorities.length +
+    filters.categories.length +
+    filters.visibilities.length +
+    filters.browsers.length +
+    filters.devices.length +
+    (filters.pagePath ? 1 : 0) +
+    (filters.reporter ? 1 : 0)
+  )
+}
 
-export function formatSiteLabel(site: string): string {
-  return site.replace(URL_SCHEME, "")
+export function formatCategoryLabel(category: CategoryFilter): string {
+  return (
+    CATEGORY_FILTER_OPTIONS.find((option) => option.value === category)
+      ?.label ?? category
+  )
+}
+
+export function formatBrowserLabel(browser: Browser): string {
+  return (
+    BROWSER_OPTIONS.find((option) => option.value === browser)?.label ?? browser
+  )
+}
+
+export function formatDeviceLabel(device: Device): string {
+  return (
+    DEVICE_OPTIONS.find((option) => option.value === device)?.label ?? device
+  )
 }
 
 export function formatStatusLabel(status: BugReportStatus): string {

@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, mock } from "bun:test"
 
-import { defaultSubmitTransport } from "../src/transport/default-submit-transport"
+import {
+  defaultSubmitTransport,
+  prepareSubmitToken,
+  resetSubmitTransportState,
+} from "../src/transport/default-submit-transport"
 import type { CaptureSubmitRequest } from "../src/types"
 
 const originalFetch = globalThis.fetch
@@ -39,6 +43,7 @@ const request = {
 } satisfies CaptureSubmitRequest
 
 afterEach(() => {
+  resetSubmitTransportState()
   mock.restore()
   globalThis.fetch = originalFetch
 })
@@ -277,5 +282,240 @@ describe("default submit transport regression", () => {
       "This recording is too large to upload reliably. Retry with a shorter recording or a screenshot."
     )
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+function json(payload: unknown, status = 200): Response {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { "content-type": "application/json" },
+  })
+}
+
+const uploadSessionPayload = {
+  bugReportId: "br_123",
+  captureUpload: {
+    headers: { "content-type": "image/png" },
+    method: "PUT",
+    url: "https://storage.example.com/capture-upload",
+  },
+  debuggerUpload: {
+    headers: { "content-type": "application/json" },
+    method: "PUT",
+    url: "https://storage.example.com/debugger-upload",
+  },
+  finalizeToken: "fin_123",
+}
+
+// A server that answers every step of a submission. `overrides` replaces the answer for URLs
+// ending in the given suffix; returning undefined from one falls through to the default.
+function installSubmitServer(
+  overrides: Record<
+    string,
+    (init?: Parameters<typeof fetch>[1]) => Promise<Response> | undefined
+  > = {}
+) {
+  let tokens = 0
+  return installFetchMock((input, init) => {
+    const url = String(input)
+    for (const [suffix, respond] of Object.entries(overrides)) {
+      const response = url.endsWith(suffix) ? respond(init) : undefined
+      if (response) return response
+    }
+    if (url.endsWith("/capture-token")) {
+      tokens += 1
+      return Promise.resolve(json({ token: `tok_${tokens}` }))
+    }
+    if (url.endsWith("/bug-report-upload-session")) {
+      return Promise.resolve(json(uploadSessionPayload))
+    }
+    if (url.startsWith("https://storage.example.com/")) {
+      return Promise.resolve(new Response(null, { status: 200 }))
+    }
+    return Promise.resolve(json({ id: "br_123", shareUrl: "/s/br_123" }))
+  })
+}
+
+function calledUrls(fetchMock: ReturnType<typeof installFetchMock>): string[] {
+  return fetchMock.mock.calls.map((call) => String(call[0]).split("/").at(-1))
+}
+
+function sessionToken(
+  fetchMock: ReturnType<typeof installFetchMock>,
+  index: number
+): string | undefined {
+  const headers = fetchMock.mock.calls[index]?.[1]?.headers as
+    | Record<string, string>
+    | undefined
+  return headers?.["x-crikket-capture-token"]
+}
+
+describe("default submit transport speed", () => {
+  it("uploads the capture and the debugger payload at the same time", async () => {
+    const started: string[] = []
+    const release: Array<() => void> = []
+    const hold = (name: string) => () => {
+      started.push(name)
+      return new Promise<Response>((resolve) => {
+        release.push(() => resolve(new Response(null, { status: 200 })))
+      })
+    }
+    installSubmitServer({
+      "/capture-upload": hold("capture"),
+      "/debugger-upload": hold("debugger"),
+    })
+
+    const submitted = defaultSubmitTransport(request)
+    while (started.length < 2) {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+
+    // Both are in flight before either has been answered.
+    expect(started).toEqual(["capture", "debugger"])
+    for (const finish of release) finish()
+    expect((await submitted).reportId).toBe("br_123")
+  })
+
+  it("fails the submission when either upload fails", async () => {
+    installSubmitServer({
+      "/debugger-upload": () =>
+        Promise.resolve(new Response(null, { status: 403 })),
+    })
+
+    await expect(defaultSubmitTransport(request)).rejects.toThrow(
+      "Artifact upload failed with status 403."
+    )
+  })
+
+  it("uses a submit token fetched ahead of time instead of asking again", async () => {
+    const fetchMock = installSubmitServer()
+
+    prepareSubmitToken(request.config)
+    expect(calledUrls(fetchMock)).toEqual(["capture-token"])
+
+    await defaultSubmitTransport(request)
+
+    expect(calledUrls(fetchMock)).toEqual([
+      "capture-token",
+      "bug-report-upload-session",
+      "capture-upload",
+      "debugger-upload",
+      "bug-report-finalize",
+    ])
+    expect(sessionToken(fetchMock, 1)).toBe("tok_1")
+  })
+
+  it("asks for a new token for each report: a token is used once", async () => {
+    const fetchMock = installSubmitServer()
+
+    prepareSubmitToken(request.config)
+    await defaultSubmitTransport(request)
+    await defaultSubmitTransport(request)
+
+    expect(
+      calledUrls(fetchMock).filter((name) => name === "capture-token")
+    ).toHaveLength(2)
+    expect(sessionToken(fetchMock, 6)).toBe("tok_2")
+  })
+
+  it("keeps a token that is still fresh rather than fetching another", async () => {
+    const fetchMock = installSubmitServer()
+
+    prepareSubmitToken(request.config)
+    prepareSubmitToken(request.config)
+    prepareSubmitToken(request.config)
+
+    expect(calledUrls(fetchMock)).toEqual(["capture-token"])
+    await defaultSubmitTransport(request)
+    expect(sessionToken(fetchMock, 1)).toBe("tok_1")
+  })
+
+  it("does not use a token prepared for another key", async () => {
+    const fetchMock = installSubmitServer()
+
+    prepareSubmitToken({ ...request.config, key: "crk_other" })
+    await defaultSubmitTransport(request)
+
+    expect(
+      calledUrls(fetchMock).filter((name) => name === "capture-token")
+    ).toHaveLength(2)
+    expect(sessionToken(fetchMock, 2)).toBe("tok_2")
+  })
+
+  it("does not use a token that has gone stale", async () => {
+    const fetchMock = installSubmitServer()
+    const realNow = Date.now
+    try {
+      prepareSubmitToken(request.config)
+      // Five minutes on: past the token's life on the server.
+      Date.now = () => realNow() + 5 * 60 * 1000
+      await defaultSubmitTransport(request)
+    } finally {
+      Date.now = realNow
+    }
+
+    expect(sessionToken(fetchMock, 2)).toBe("tok_2")
+  })
+
+  it("gets a new token when the one fetched ahead of time is turned down", async () => {
+    let sessions = 0
+    const fetchMock = installSubmitServer({
+      "/bug-report-upload-session": () => {
+        sessions += 1
+        return sessions === 1
+          ? Promise.resolve(
+              json({ message: "Capture submit token is invalid." }, 401)
+            )
+          : undefined
+      },
+    })
+
+    prepareSubmitToken(request.config)
+    const result = await defaultSubmitTransport(request)
+
+    expect(result.reportId).toBe("br_123")
+    expect(calledUrls(fetchMock).slice(0, 4)).toEqual([
+      "capture-token",
+      "bug-report-upload-session",
+      "capture-token",
+      "bug-report-upload-session",
+    ])
+    expect(sessionToken(fetchMock, 3)).toBe("tok_2")
+  })
+
+  it("reports a refused token as before when none was fetched ahead of time", async () => {
+    const fetchMock = installSubmitServer({
+      "/bug-report-upload-session": () =>
+        Promise.resolve(
+          json({ message: "Capture submit token is invalid." }, 401)
+        ),
+    })
+
+    await expect(defaultSubmitTransport(request)).rejects.toThrow(
+      "Capture submit token is invalid."
+    )
+    expect(calledUrls(fetchMock)).toEqual([
+      "capture-token",
+      "bug-report-upload-session",
+    ])
+  })
+
+  it("falls back to asking at submit time when the early request fails", async () => {
+    let tokenRequests = 0
+    const fetchMock = installSubmitServer({
+      "/capture-token": () => {
+        tokenRequests += 1
+        return tokenRequests === 1
+          ? Promise.resolve(json({ message: "Too many attempts." }, 429))
+          : undefined
+      },
+    })
+
+    prepareSubmitToken(request.config)
+    const result = await defaultSubmitTransport(request)
+
+    expect(result.reportId).toBe("br_123")
+    expect(tokenRequests).toBe(2)
+    expect(sessionToken(fetchMock, 2)).toBe("tok_1")
   })
 })

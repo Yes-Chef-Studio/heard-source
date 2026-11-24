@@ -13,11 +13,31 @@ export const PRIORITIES: ReadonlyArray<{
   value: Priority
   label: string
   description: string
+  color: string
 }> = [
-  { value: "high", label: "High", description: "Launch blocking" },
-  { value: "normal", label: "Normal", description: "Nice to fix" },
-  { value: "low", label: "Low", description: "Post-launch backlog" },
+  {
+    value: "high",
+    label: "High",
+    description: "Launch blocking",
+    color: "#e5484d",
+  },
+  {
+    value: "normal",
+    label: "Normal",
+    description: "Nice to fix",
+    color: "#e0a019",
+  },
+  {
+    value: "low",
+    label: "Low",
+    description: "Post-launch backlog",
+    color: "#7d93b2",
+  },
 ]
+
+export function getPriorityColor(priority: string): string {
+  return PRIORITIES.find((item) => item.value === priority)?.color ?? "#9ca3af"
+}
 
 export function getPriorityLabel(priority: string): string {
   const option = PRIORITIES.find((item) => item.value === priority)

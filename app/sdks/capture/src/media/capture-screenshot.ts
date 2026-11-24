@@ -1,3 +1,4 @@
+import { fitWithinLongEdge, SCREEN_CAPTURE_FORMAT } from "./capture-size"
 import {
   assertBrowserTabSurface,
   canvasToBlob,
@@ -25,17 +26,23 @@ export async function captureScreenshot(): Promise<Blob> {
       throw new Error("Captured screen dimensions were invalid.")
     }
 
+    const size = fitWithinLongEdge(width, height)
     const canvas = document.createElement("canvas")
-    canvas.width = width
-    canvas.height = height
+    canvas.width = size.width
+    canvas.height = size.height
 
     const context = canvas.getContext("2d")
     if (!context) {
       throw new Error("Failed to initialize screenshot canvas.")
     }
 
-    context.drawImage(video, 0, 0, width, height)
-    return canvasToBlob(canvas, "image/png")
+    context.imageSmoothingQuality = "high"
+    context.drawImage(video, 0, 0, size.width, size.height)
+    return canvasToBlob(
+      canvas,
+      SCREEN_CAPTURE_FORMAT.type,
+      SCREEN_CAPTURE_FORMAT.quality
+    )
   } finally {
     releaseCaptureVideo(video)
     for (const currentTrack of stream.getTracks()) {

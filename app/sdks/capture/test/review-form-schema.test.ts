@@ -26,3 +26,22 @@ describe("validateReviewDraft", () => {
     )
   })
 })
+
+describe("category", () => {
+  it("is optional: a draft with no category is valid", () => {
+    expect(validateReviewDraft({ ...valid, category: "" })).toBeUndefined()
+    expect(validateReviewDraft(valid)).toBeUndefined()
+  })
+
+  it("accepts a known category and rejects an unknown one", () => {
+    expect(
+      validateReviewDraft({ ...valid, category: "broken_link" })
+    ).toBeUndefined()
+    expect(
+      validateReviewDraft({
+        ...valid,
+        category: "nonsense" as unknown as "copy",
+      })?.category
+    ).toBe("Select a valid category.")
+  })
+})

@@ -8,6 +8,7 @@ import type {
 
 export { defaultSubmitTransport } from "./transport/default-submit-transport"
 export type {
+  CaptureCategory,
   CaptureDebuggerSummary,
   CaptureInitOptions,
   CapturePriority,

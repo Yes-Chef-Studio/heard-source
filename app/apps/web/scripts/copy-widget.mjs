@@ -1,7 +1,10 @@
 // Serves the built widget from the dashboard at /widget.js, so sites embed it with a script tag.
 import { copyFileSync, existsSync, mkdirSync } from "node:fs"
 
-const source = new URL("../../../sdks/capture/dist/capture.global.js", import.meta.url)
+const source = new URL(
+  "../../../sdks/capture/dist/capture.global.js",
+  import.meta.url
+)
 const target = new URL("../public/widget.js", import.meta.url)
 
 if (!existsSync(source)) {

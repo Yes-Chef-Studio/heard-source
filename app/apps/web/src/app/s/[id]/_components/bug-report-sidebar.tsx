@@ -10,6 +10,10 @@ import {
 } from "lucide-react"
 import type { ReactNode } from "react"
 
+import {
+  CategoryBadge,
+  PriorityBadge,
+} from "@/components/bug-reports/category-picker"
 import { CommentsPanel } from "./comments-panel"
 import { NetworkRequestsPanel } from "./network-requests-panel"
 import { ReproductionStepsList } from "./reproduction-steps-list"
@@ -134,10 +138,23 @@ export function BugReportSidebar({
                 Ticket Info
               </h3>
               <div className="grid gap-3 text-sm">
-                <DetailRow
-                  label="Priority"
-                  value={getPriorityLabel(data.priority)}
-                />
+                <div className="flex flex-col items-start gap-1">
+                  <span className="font-medium text-muted-foreground text-xs">
+                    Priority
+                  </span>
+                  <PriorityBadge
+                    label={getPriorityLabel(data.priority)}
+                    priority={data.priority}
+                  />
+                </div>
+                {data.category ? (
+                  <div className="flex flex-col items-start gap-1">
+                    <span className="font-medium text-muted-foreground text-xs">
+                      Category
+                    </span>
+                    <CategoryBadge category={data.category} />
+                  </div>
+                ) : null}
                 <DetailRow label="Reporter" value={reporterName} />
                 {data.reporterEmail ? (
                   <div className="flex flex-col gap-0.5">

@@ -5,6 +5,7 @@ import { ArrowLeft, ExternalLink } from "lucide-react"
 import type { Route } from "next"
 import Link from "next/link"
 
+import { CategoryBadge } from "@/components/bug-reports/category-picker"
 import { formatRelativeTime } from "@/lib/relative-time"
 import { type client, orpc } from "@/utils/orpc"
 import { SharedCommentForm } from "./shared-comment-form"
@@ -112,7 +113,10 @@ export function SharedTicketView({
         <Media ticket={ticket} />
         <div className="space-y-5">
           <div className="space-y-2">
-            <ClientStatusBadge status={ticket.status} />
+            <div className="flex flex-wrap items-center gap-2">
+              <ClientStatusBadge status={ticket.status} />
+              <CategoryBadge category={ticket.category} />
+            </div>
             <h1 className="font-bold text-2xl tracking-tight">
               {ticket.title}
             </h1>

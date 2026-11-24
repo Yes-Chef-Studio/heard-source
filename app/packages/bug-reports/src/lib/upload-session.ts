@@ -8,6 +8,7 @@ import {
   BUG_REPORT_SUBMISSION_STATUS_OPTIONS,
   DEFAULT_BUG_REPORT_STATUS,
 } from "@crikket/shared/constants/bug-report"
+import { normalizeCategory } from "@crikket/shared/constants/categories"
 import {
   DEFAULT_PRIORITY,
   PRIORITY_OPTIONS,
@@ -60,6 +61,12 @@ export const createBugReportUploadSessionInputSchema = z.object({
   title: optionalText(200),
   description: optionalText(3000),
   priority: z.enum(priorityValues).default(DEFAULT_PRIORITY),
+  // Optional. Anything that is not a known category is stored as none rather than rejected, so a
+  // widget build that is older or newer than the server never loses a report over it.
+  category: z
+    .unknown()
+    .optional()
+    .transform((value) => normalizeCategory(value)),
   tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
   url: z.string().url().optional(),
   attachmentType: z.enum(["video", "screenshot"]),
@@ -215,6 +222,7 @@ export async function createBugReportUploadSession(input: {
       title: inferredTitle,
       description: input.input.description,
       priority: input.input.priority,
+      category: input.input.category ?? null,
       tags: input.tags,
       url: input.input.url,
       attachmentType: input.input.attachmentType,
@@ -345,21 +353,24 @@ export async function finalizeBugReportUpload(input: {
     })
   }
 
+  // Heard: both uploads are looked up in storage at once; the reporter is waiting on this.
   const storage = getStorageProvider()
-  const hasCapture = await storage.exists(uploadSession.captureKey)
+  const [hasCapture, hasDebugger] = await Promise.all([
+    storage.exists(uploadSession.captureKey),
+    uploadSession.debuggerKey
+      ? storage.exists(uploadSession.debuggerKey)
+      : true,
+  ])
   if (!hasCapture) {
     throw new ORPCError("BAD_REQUEST", {
       message: "Capture upload has not completed yet.",
     })
   }
 
-  if (uploadSession.debuggerKey) {
-    const hasDebugger = await storage.exists(uploadSession.debuggerKey)
-    if (!hasDebugger) {
-      throw new ORPCError("BAD_REQUEST", {
-        message: "Debugger upload has not completed yet.",
-      })
-    }
+  if (!hasDebugger) {
+    throw new ORPCError("BAD_REQUEST", {
+      message: "Debugger upload has not completed yet.",
+    })
   }
 
   // The type the upload URL was signed for is what the object was stored with; the finalize
@@ -387,6 +398,7 @@ export async function finalizeBugReportUpload(input: {
       title: uploadSession.title,
       description: uploadSession.description,
       priority: uploadSession.priority,
+      category: uploadSession.category,
       tags: uploadSession.tags,
       url: uploadSession.url,
       attachmentType: uploadSession.attachmentType,
@@ -413,14 +425,17 @@ export async function finalizeBugReportUpload(input: {
       .where(eq(bugReportUploadSession.id, uploadSession.id))
   })
 
-  await notifyNewWidgetReport(uploadSession)
-
-  const debuggerPersistence = uploadSession.debuggerKey
-    ? await finalizeBugReportDebuggerIngestion({
-        bugReportId: uploadSession.id,
-        organizationId: uploadSession.organizationId,
-      })
-    : createEmptyDebuggerPersistence()
+  // Heard: the notification is written while the debugger data is read in, not before it.
+  // (createNotification never rejects.)
+  const [debuggerPersistence] = await Promise.all([
+    uploadSession.debuggerKey
+      ? finalizeBugReportDebuggerIngestion({
+          bugReportId: uploadSession.id,
+          organizationId: uploadSession.organizationId,
+        })
+      : createEmptyDebuggerPersistence(),
+    notifyNewWidgetReport(uploadSession),
+  ])
 
   const warnings = [...debuggerPersistence.warnings]
   const submissionStatus =

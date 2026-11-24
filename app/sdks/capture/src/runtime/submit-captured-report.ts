@@ -1,6 +1,9 @@
 import { BUG_REPORT_VISIBILITY_OPTIONS } from "@crikket/shared/constants/bug-report"
 import { DEFAULT_PRIORITY } from "@crikket/shared/constants/priorities"
-import { defaultSubmitTransport } from "../transport/default-submit-transport"
+import {
+  defaultSubmitTransport,
+  prepareSubmitToken,
+} from "../transport/default-submit-transport"
 import type {
   CapturedMedia,
   CaptureRuntimeConfig,
@@ -10,6 +13,15 @@ import type {
   ReviewSnapshot,
 } from "../types"
 import { getDeviceInfo, getPageTitle, getPageUrl } from "../utils"
+
+// Heard: called when the review screen has its capture, so the first request of a submission is
+// already answered by the time "Send report" is clicked. Only the built-in transport has one.
+export function prepareSubmit(input: {
+  config: CaptureRuntimeConfig
+  submitTransport?: CaptureSubmitTransport
+}): void {
+  if (!input.submitTransport) prepareSubmitToken(input.config)
+}
 
 export function submitCapturedReport(input: {
   config: CaptureRuntimeConfig
@@ -28,6 +40,7 @@ export function submitCapturedReport(input: {
       description: input.draft.description.trim(),
       // The form requires a priority, so the fallback only covers callers that skip it.
       priority: input.draft.priority || DEFAULT_PRIORITY,
+      category: input.draft.category || null,
       visibility: BUG_REPORT_VISIBILITY_OPTIONS.private,
       reporter: input.draft.reporterName?.trim()
         ? {

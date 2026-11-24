@@ -6,6 +6,12 @@ import {
   type BugReportStatus,
   type BugReportVisibility,
 } from "@crikket/shared/constants/bug-report"
+import {
+  CATEGORIES,
+  type Category,
+  getCategoryMeta,
+  NO_CATEGORY_LABEL,
+} from "@crikket/shared/constants/categories"
 import { PRIORITIES, type Priority } from "@crikket/shared/constants/priorities"
 import { Button } from "@crikket/ui/components/ui/button"
 import { Field, FieldError, FieldLabel } from "@crikket/ui/components/ui/field"
@@ -29,17 +35,26 @@ import { useForm } from "@tanstack/react-form"
 import { useState } from "react"
 import { toast } from "sonner"
 
+import { ColorLabel } from "@/components/bug-reports/category-picker"
 import { editBugReportFormSchema } from "@/lib/schema/bug-report"
 import { client } from "@/utils/orpc"
 
 const statusOptions: Array<{ label: string; value: BugReportStatus }> =
   BUG_REPORT_STATUSES.map(({ value, label }) => ({ value, label }))
 
-const priorityOptions: Array<{ label: string; value: Priority }> =
-  PRIORITIES.map(({ value, label, description }) => ({
-    value,
-    label: `${label}: ${description}`,
-  }))
+const priorityOptions: Array<{
+  label: string
+  value: Priority
+  color: string
+}> = PRIORITIES.map(({ value, label, description, color }) => ({
+  value,
+  label: `${label}: ${description}`,
+  color,
+}))
+
+// The form holds "" for a ticket without a category; the API takes null.
+type CategoryFormValue = Category | ""
+const NO_CATEGORY_VALUE = "__none__"
 
 const visibilityOptions: Array<{ label: string; value: BugReportVisibility }> =
   [
@@ -51,10 +66,8 @@ function getStatusLabel(value: BugReportStatus): string {
   return statusOptions.find((option) => option.value === value)?.label ?? value
 }
 
-function getPriorityLabel(value: Priority): string {
-  return (
-    priorityOptions.find((option) => option.value === value)?.label ?? value
-  )
+function getPriorityOption(value: Priority) {
+  return priorityOptions.find((option) => option.value === value)
 }
 
 function getVisibilityLabel(value: BugReportVisibility): string {
@@ -84,6 +97,7 @@ interface EditBugReportSheetProps {
     tags: string[]
     status: BugReportStatus
     priority: Priority
+    category?: Category | null
     visibility: BugReportVisibility
   }
 }
@@ -102,6 +116,7 @@ export function EditBugReportSheet({
       tagsInput: report.tags.join(", "),
       status: report.status,
       priority: report.priority,
+      category: (report.category ?? "") as CategoryFormValue,
       visibility: report.visibility,
     },
     validators: {
@@ -117,6 +132,7 @@ export function EditBugReportSheet({
           tags: parseTagInput(value.tagsInput),
           status: value.status,
           priority: value.priority,
+          category: value.category === "" ? null : value.category,
           visibility: value.visibility,
         })
         await onUpdated?.()
@@ -138,6 +154,7 @@ export function EditBugReportSheet({
       tagsInput: report.tags.join(", "),
       status: report.status,
       priority: report.priority,
+      category: (report.category ?? "") as CategoryFormValue,
       visibility: report.visibility,
     })
   }
@@ -155,7 +172,8 @@ export function EditBugReportSheet({
         <SheetHeader>
           <SheetTitle>Edit bug report</SheetTitle>
           <SheetDescription>
-            Update report details, tags, priority, status, and privacy.
+            Update report details, tags, priority, category, status, and
+            privacy.
           </SheetDescription>
         </SheetHeader>
 
@@ -265,13 +283,22 @@ export function EditBugReportSheet({
                     >
                       <SelectTrigger className="w-full" id={field.name}>
                         <SelectValue>
-                          {getPriorityLabel(field.state.value)}
+                          <ColorLabel
+                            color={getPriorityOption(field.state.value)?.color}
+                            label={
+                              getPriorityOption(field.state.value)?.label ??
+                              field.state.value
+                            }
+                          />
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         {priorityOptions.map((option) => (
                           <SelectItem key={option.value} value={option.value}>
-                            {option.label}
+                            <ColorLabel
+                              color={option.color}
+                              label={option.label}
+                            />
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -280,6 +307,47 @@ export function EditBugReportSheet({
                 )}
               </form.Field>
             </div>
+
+            <form.Field name="category">
+              {(field) => (
+                <Field>
+                  <FieldLabel htmlFor={field.name}>Category</FieldLabel>
+                  <Select
+                    onValueChange={(value) =>
+                      field.handleChange(
+                        value === NO_CATEGORY_VALUE ? "" : (value as Category)
+                      )
+                    }
+                    value={field.state.value || NO_CATEGORY_VALUE}
+                  >
+                    <SelectTrigger className="w-full" id={field.name}>
+                      <SelectValue>
+                        <ColorLabel
+                          color={getCategoryMeta(field.state.value)?.color}
+                          label={
+                            getCategoryMeta(field.state.value)?.label ??
+                            NO_CATEGORY_LABEL
+                          }
+                        />
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_CATEGORY_VALUE}>
+                        {NO_CATEGORY_LABEL}
+                      </SelectItem>
+                      {CATEGORIES.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          <ColorLabel
+                            color={option.color}
+                            label={option.label}
+                          />
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              )}
+            </form.Field>
 
             <form.Field name="visibility">
               {(field) => (

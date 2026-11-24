@@ -2,6 +2,7 @@ import {
   BUG_REPORT_STATUS_OPTIONS,
   BUG_REPORT_VISIBILITY_OPTIONS,
 } from "@crikket/shared/constants/bug-report"
+import { CATEGORY_VALUES } from "@crikket/shared/constants/categories"
 import { PRIORITY_OPTIONS } from "@crikket/shared/constants/priorities"
 import * as z from "zod"
 
@@ -60,5 +61,7 @@ export const editBugReportFormSchema = z.object({
   }),
   status: z.enum(statusValues),
   priority: z.enum(priorityValues),
+  // Empty string = no category.
+  category: z.enum([...CATEGORY_VALUES, ""]),
   visibility: z.enum(visibilityValues),
 })
