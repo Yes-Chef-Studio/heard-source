@@ -7,6 +7,7 @@ import {
   type BugReportVisibility,
 } from "@crikket/shared/constants/bug-report"
 import type { Category } from "@crikket/shared/constants/categories"
+import { DEFAULT_PRIORITY } from "@crikket/shared/constants/priorities"
 import { reportNonFatalError } from "@crikket/shared/lib/errors"
 import { Badge } from "@crikket/ui/components/ui/badge"
 import { Button } from "@crikket/ui/components/ui/button"
@@ -29,11 +30,11 @@ import {
   Copy,
   Edit3,
   ExternalLink,
-  ImageIcon,
+  Globe,
+  Link2,
   MoreVertical,
   Play,
   RotateCcw,
-  Shield,
   Tag,
   Trash2,
 } from "lucide-react"
@@ -108,15 +109,17 @@ export function BugReportCard({
   }
 
   return (
-    <Card className="group relative overflow-hidden p-0 transition-all hover:-translate-y-0.5 hover:shadow-lg">
+    <Card className="group relative flex h-full flex-col overflow-hidden p-0 transition-all hover:-translate-y-0.5 hover:shadow-lg">
       <Link
         aria-label={`Open ${report.title}`}
         className="absolute inset-0 z-10"
         href={`/s/${report.id}`}
       />
-      <CardContent className="p-0">
+      <CardContent className="flex flex-1 flex-col p-0">
         <div className="relative aspect-video overflow-hidden bg-muted">
-          <div className="absolute top-2 left-2 z-20">
+          <div
+            className={`absolute top-2.5 left-2.5 z-20 transition-opacity ${isChecked ? "" : "md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100"}`}
+          >
             <Checkbox
               aria-label={`Select ${report.title}`}
               checked={isChecked}
@@ -128,7 +131,7 @@ export function BugReportCard({
             />
           </div>
 
-          <div className="absolute top-2 right-2 z-20">
+          <div className="absolute top-2.5 right-2.5 z-20 transition-opacity md:opacity-0 md:has-[[data-popup-open]]:opacity-100 md:group-hover:opacity-100 md:focus-within:opacity-100">
             <DropdownMenu>
               <DropdownMenuTrigger
                 onClick={(event) => {
@@ -221,46 +224,81 @@ export function BugReportCard({
           ) : null}
         </div>
 
-        <div className="space-y-2 p-3">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 space-y-1">
-              <h3
-                className="line-clamp-1 font-semibold text-sm leading-tight"
-                title={report.title}
-              >
-                {report.title}
-              </h3>
-              <p className="text-muted-foreground text-xs">
-                {new Date(report.createdAt).toLocaleString()}
-              </p>
+        <div className="flex flex-col gap-4 p-4">
+          <div className="min-w-0 space-y-1.5">
+            <h3
+              className="line-clamp-2 font-semibold text-[15px] text-foreground leading-snug"
+              title={report.title}
+            >
+              {report.title}
+            </h3>
+            <p className="flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs">
               {report.uploader ? (
-                <p
-                  className="line-clamp-1 text-xs"
+                <span
+                  className="truncate"
                   title={report.reporterEmail ?? report.uploader.name}
                 >
-                  From {report.uploader.name}
-                </p>
+                  {report.uploader.name}
+                </span>
               ) : null}
-            </div>
-            <span className="inline-flex shrink-0 items-center gap-1 rounded-md border bg-muted px-2 py-1 font-medium text-[11px]">
-              <Shield className="size-3" />
-              {isPrivate ? "Private" : "Public"}
-            </span>
+              {report.uploader ? (
+                <span aria-hidden="true" className="opacity-50">
+                  ·
+                </span>
+              ) : null}
+              <time
+                className="shrink-0"
+                dateTime={new Date(report.createdAt).toISOString()}
+                title={new Date(report.createdAt).toLocaleString()}
+              >
+                {formatShortDate(report.createdAt)}
+              </time>
+              {isPrivate ? null : (
+                <span
+                  className="inline-flex shrink-0 items-center gap-1"
+                  title="Anyone with the link can view this ticket"
+                >
+                  <span aria-hidden="true" className="opacity-50">
+                    ·
+                  </span>
+                  <Globe className="size-3" />
+                  Public
+                </span>
+              )}
+            </p>
+            {report.url ? (
+              <p
+                className="flex min-w-0 items-center gap-1.5 text-muted-foreground/80 text-xs"
+                title={report.url}
+              >
+                <Link2 className="size-3 shrink-0" />
+                <span className="truncate">{formatPagePath(report.url)}</span>
+              </p>
+            ) : null}
           </div>
 
-          <p className="line-clamp-2 min-h-8 text-muted-foreground text-xs">
-            {report.description || report.url || "No additional context"}
-          </p>
+          {report.description ? (
+            <p className="line-clamp-2 text-muted-foreground text-xs leading-relaxed">
+              {report.description}
+            </p>
+          ) : null}
 
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="mt-auto flex flex-wrap items-center gap-1.5 border-t pt-3">
             <StatusPicker
               disabled={isMutating}
               onChange={(status) => onUpdateReport({ status })}
               status={report.status}
             />
-            <PriorityBadge priority={report.priority} />
+            {report.priority === DEFAULT_PRIORITY ? null : (
+              <PriorityBadge priority={report.priority} />
+            )}
             <CategoryPicker
               category={report.category}
+              className={
+                report.category
+                  ? undefined
+                  : "opacity-0 focus-visible:opacity-100 group-hover:opacity-100 data-[popup-open]:opacity-100"
+              }
               disabled={isMutating}
               onChange={(category) => onUpdateReport({ category })}
             />
@@ -310,6 +348,27 @@ export function BugReportCard({
   )
 }
 
+const SHORT_DATE = new Intl.DateTimeFormat(undefined, {
+  day: "numeric",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+})
+
+function formatShortDate(value: string | Date) {
+  return SHORT_DATE.format(new Date(value))
+}
+
+// The page part of the URL ("/services"); the host is the same for every ticket in a project.
+function formatPagePath(url: string) {
+  try {
+    const parsed = new URL(url)
+    return `${parsed.pathname}${parsed.search}${parsed.hash}` || "/"
+  } catch {
+    return url
+  }
+}
+
 function formatSubmissionStatusLabel(
   status: BugReportCardProps["report"]["submissionStatus"]
 ) {
@@ -333,15 +392,6 @@ function MediaTypeBadge({
       <Badge className="border-white/15 bg-black/75 text-white backdrop-blur-sm hover:bg-black/75">
         <Clapperboard className="size-3" />
         Video
-      </Badge>
-    )
-  }
-
-  if (attachmentType === "screenshot") {
-    return (
-      <Badge className="border-white/15 bg-black/75 text-white backdrop-blur-sm hover:bg-black/75">
-        <ImageIcon className="size-3" />
-        Screenshot
       </Badge>
     )
   }
