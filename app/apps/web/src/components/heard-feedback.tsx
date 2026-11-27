@@ -11,6 +11,8 @@ import { toast } from "sonner"
 // Heard reports on itself: this opens the Heard widget with the key of the internal "Heard"
 // project (NEXT_PUBLIC_CRIKKET_KEY), so bugs and ideas land in the dashboard like any other ticket.
 // The widget is loaded on the first click and never shows its side tab here.
+const OPEN_TIMEOUT_MS = 4000
+
 async function openFeedbackWidget(key: string) {
   const capture = await import("@crikket-io/capture")
   if (!capture.isInitialized()) {
@@ -22,6 +24,12 @@ async function openFeedbackWidget(key: string) {
     })
   }
   capture.open()
+  // The widget fails closed and silently when its site check is refused (for example a privacy
+  // extension blocking the request). Say so instead of leaving the click with no response.
+  await new Promise((resolve) => setTimeout(resolve, OPEN_TIMEOUT_MS))
+  if (!document.querySelector("[data-heard-widget]")) {
+    throw new Error("Feedback widget didn't open")
+  }
 }
 
 export function HeardFeedbackButton({ className }: { className?: string }) {
@@ -40,7 +48,9 @@ export function HeardFeedbackButton({ className }: { className?: string }) {
         setIsOpening(true)
         openFeedbackWidget(key)
           .catch(() => {
-            toast.error("Couldn't open the feedback form. Try again.")
+            toast.error(
+              "The feedback form didn't open. If you use an ad blocker or privacy shield, allow it for this site and try again."
+            )
           })
           .finally(() => setIsOpening(false))
       }}

@@ -27,7 +27,7 @@
       "image_vars": {
         "HEARD_URL": "https://heard.yeschef-dev.fyi",
         // Public key of the internal "Heard" project (Report a bug button). Empty hides the button.
-        "HEARD_FEEDBACK_KEY": ""
+        "HEARD_FEEDBACK_KEY": "crk_GYs7xEMSezx6DK0prxOsom5C"
       },
       "instance_type": "basic",
       // One instance: the API keeps some state (rate limits, background jobs) in memory.

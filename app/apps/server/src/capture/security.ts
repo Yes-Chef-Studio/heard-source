@@ -340,20 +340,28 @@ export function assertCaptureTokenRequestBodyLength(request: Request): void {
 
 export function getCaptureRequestOrigin(request: Request): string | null {
   const headerOrigin = request.headers.get("origin")
-  if (headerOrigin) {
+  // "null" is what browsers send when the page's referrer policy hides its origin.
+  if (headerOrigin && headerOrigin !== "null") {
     return normalizeCaptureOrigin(headerOrigin)
   }
 
   const refererHeader = request.headers.get("referer")
-  if (!refererHeader) {
-    return null
+  if (refererHeader) {
+    try {
+      return normalizeCaptureOrigin(new URL(refererHeader).origin)
+    } catch {
+      return null
+    }
   }
 
-  try {
-    return normalizeCaptureOrigin(new URL(refererHeader).origin)
-  } catch {
-    return null
+  // Heard: the widget on Heard's own pages (the "Report a bug" button). Same-origin GETs carry no
+  // Origin, and privacy settings (Brave Shields, strict referrer policies) can drop the Referer.
+  // Sec-Fetch-Site is set by the browser and can't be changed by page scripts.
+  if (request.headers.get("sec-fetch-site") === "same-origin") {
+    return normalizeCaptureOrigin(env.BETTER_AUTH_URL)
   }
+
+  return null
 }
 
 export function evaluateCaptureSubmitRateLimit(input: {
