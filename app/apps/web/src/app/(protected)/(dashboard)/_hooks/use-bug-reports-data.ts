@@ -7,7 +7,31 @@ import { useEffect, useMemo, useRef } from "react"
 import { orpc } from "@/utils/orpc"
 import type { DashboardFilters } from "../_components/bug-reports/filters"
 
-const PAGE_SIZE = 12
+export const PAGE_SIZE = 12
+
+// bugReport.list input for these filters, without the page. Also used by the ticket page's
+// previous/next arrows to load more of the same list (see lib/ticket-nav.ts).
+export function buildListInput({
+  search,
+  sort,
+  filters,
+  projectId,
+}: UseBugReportsDataInput) {
+  return {
+    search: search || undefined,
+    sort,
+    statuses: filters.statuses.length > 0 ? filters.statuses : undefined,
+    priorities: filters.priorities.length > 0 ? filters.priorities : undefined,
+    visibilities:
+      filters.visibilities.length > 0 ? filters.visibilities : undefined,
+    categories: filters.categories.length > 0 ? filters.categories : undefined,
+    pagePath: filters.pagePath || undefined,
+    browsers: filters.browsers.length > 0 ? filters.browsers : undefined,
+    devices: filters.devices.length > 0 ? filters.devices : undefined,
+    reporter: filters.reporter || undefined,
+    projectId,
+  }
+}
 
 interface UseBugReportsDataInput {
   search: string
@@ -23,6 +47,7 @@ export function useBugReportsData({
   projectId,
 }: UseBugReportsDataInput) {
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
+  const listInput = buildListInput({ search, sort, filters, projectId })
 
   const query = useInfiniteQuery(
     orpc.bugReport.list.infiniteOptions({
@@ -30,20 +55,7 @@ export function useBugReportsData({
       input: (pageParam) => ({
         page: pageParam,
         perPage: PAGE_SIZE,
-        search: search || undefined,
-        sort,
-        statuses: filters.statuses.length > 0 ? filters.statuses : undefined,
-        priorities:
-          filters.priorities.length > 0 ? filters.priorities : undefined,
-        visibilities:
-          filters.visibilities.length > 0 ? filters.visibilities : undefined,
-        categories:
-          filters.categories.length > 0 ? filters.categories : undefined,
-        pagePath: filters.pagePath || undefined,
-        browsers: filters.browsers.length > 0 ? filters.browsers : undefined,
-        devices: filters.devices.length > 0 ? filters.devices : undefined,
-        reporter: filters.reporter || undefined,
-        projectId,
+        ...listInput,
       }),
       getNextPageParam: (lastPage) =>
         lastPage.pagination.hasNextPage
@@ -88,6 +100,8 @@ export function useBugReportsData({
 
   return {
     loadMoreRef,
+    listInput,
+    hasNextPage: query.hasNextPage,
     reports,
     stats: statsQuery.data,
     refetchAll,

@@ -3,6 +3,7 @@ import { bugReport } from "@crikket/db/schema/bug-report"
 import {
   BUG_REPORT_DEBUGGER_INGESTION_STATUS_OPTIONS,
   BUG_REPORT_SORT_OPTIONS,
+  BUG_REPORT_STATUSES,
   BUG_REPORT_SUBMISSION_STATUS_OPTIONS,
   type BugReportDebuggerIngestionStatus,
   type BugReportSort,
@@ -184,6 +185,22 @@ function buildOrderBy(sort: BugReportSort) {
       ELSE 3
     END
   `
+
+  if (sort === BUG_REPORT_SORT_OPTIONS.status) {
+    const statusOrder = sql.join(
+      BUG_REPORT_STATUSES.map(
+        (option, index) =>
+          sql`WHEN ${bugReport.status} = ${option.value} THEN ${index}`
+      ),
+      sql` `
+    )
+    return [
+      asc(
+        sql<number>`CASE ${statusOrder} ELSE ${BUG_REPORT_STATUSES.length} END`
+      ),
+      desc(bugReport.createdAt),
+    ]
+  }
 
   if (sort === BUG_REPORT_SORT_OPTIONS.oldest) {
     return [asc(bugReport.createdAt)]

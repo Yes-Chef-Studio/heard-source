@@ -1,9 +1,10 @@
 "use client"
 
-import type {
-  BugReportSort,
-  BugReportStatus,
-  BugReportVisibility,
+import {
+  type BugReportSort,
+  type BugReportStatus,
+  type BugReportVisibility,
+  OPEN_STATUS_VALUES,
 } from "@crikket/shared/constants/bug-report"
 import type { Browser, Device } from "@crikket/shared/constants/device"
 import { PRIORITIES, type Priority } from "@crikket/shared/constants/priorities"
@@ -27,6 +28,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@crikket/ui/components/ui/select"
@@ -43,6 +45,7 @@ import {
 import { type ReactNode, useMemo } from "react"
 
 import { ColorLabel } from "@/components/bug-reports/category-picker"
+import { StatusIcon } from "@/components/bug-reports/status-picker"
 import { orpc } from "@/utils/orpc"
 
 import {
@@ -58,6 +61,7 @@ import {
   formatPriorityLabel,
   formatStatusLabel,
   formatVisibilityLabel,
+  isDefaultStatusFilter,
   PRIORITY_FILTER_OPTIONS,
   SORT_OPTIONS,
   STATUS_OPTIONS,
@@ -75,7 +79,7 @@ interface BugReportsToolbarProps {
   onSearchChange: (value: string) => void
   onPagePathChange: (value: string) => void
   onSortChange: (value: BugReportSort) => void
-  onToggleStatus: (value: BugReportStatus) => void
+  onStatusesChange: (value: BugReportStatus[]) => void
   onPriorityChange: (value: Priority | "") => void
   onCategoryChange: (value: CategoryFilter | "") => void
   onToggleVisibility: (value: BugReportVisibility) => void
@@ -86,7 +90,8 @@ interface BugReportsToolbarProps {
 }
 
 const ALL = "__all__"
-const SELECT_WIDTH = "w-[160px]"
+// Wide enough for every option label, so nothing in the bar is cut off.
+const SELECT_WIDTH = "w-auto min-w-[150px] max-w-[260px]"
 
 interface ReporterOption {
   key: string
@@ -108,7 +113,7 @@ export function BugReportsToolbar({
   onSearchChange,
   onPagePathChange,
   onSortChange,
-  onToggleStatus,
+  onStatusesChange,
   onPriorityChange,
   onCategoryChange,
   onToggleVisibility,
@@ -145,18 +150,20 @@ export function BugReportsToolbar({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <div className="relative w-full xl:max-w-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative w-full shrink-0 md:w-60">
           <Search className="pointer-events-none absolute top-2.5 left-2.5 size-4 text-muted-foreground" />
           <Input
             className="pl-9"
             onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Search title, description, URL or reviewer"
+            placeholder="Search tickets"
+            title="Search title, description, URL or reviewer"
             value={search}
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusSelect onChange={onStatusesChange} value={filters.statuses} />
           <PageSelect
             onChange={onPagePathChange}
             pages={pages}
@@ -177,7 +184,6 @@ export function BugReportsToolbar({
             onReporterChange={onReporterChange}
             onToggleBrowser={onToggleBrowser}
             onToggleDevice={onToggleDevice}
-            onToggleStatus={onToggleStatus}
             onToggleVisibility={onToggleVisibility}
             reporters={reporters}
           />
@@ -198,6 +204,68 @@ export function BugReportsToolbar({
         stats={stats}
       />
     </div>
+  )
+}
+
+const OPEN = "__open__"
+
+// "Open" (the default) hides closed and cancelled tickets; "All statuses" brings them back.
+function StatusSelect({
+  value,
+  onChange,
+}: {
+  value: BugReportStatus[]
+  onChange: (value: BugReportStatus[]) => void
+}) {
+  let selected: string
+  let label: ReactNode
+  if (isDefaultStatusFilter(value)) {
+    selected = OPEN
+    label = "Open"
+  } else if (value.length === 0 || value.length === STATUS_OPTIONS.length) {
+    selected = ALL
+    label = "All statuses"
+  } else if (value.length === 1) {
+    selected = value[0]
+    label = (
+      <span className="flex min-w-0 items-center gap-2">
+        <StatusIcon status={value[0]} />
+        <span className="truncate">{formatStatusLabel(value[0])}</span>
+      </span>
+    )
+  } else {
+    // A custom set from an old link; picking any option replaces it.
+    selected = ""
+    label = `${value.length} statuses`
+  }
+
+  return (
+    <Select
+      onValueChange={(next) => {
+        const slug = String(next ?? "")
+        if (slug === OPEN) onChange([...OPEN_STATUS_VALUES])
+        else if (slug === ALL) onChange(STATUS_OPTIONS.map((s) => s.value))
+        else if (slug) onChange([slug as BugReportStatus])
+      }}
+      value={selected}
+    >
+      <SelectTrigger aria-label="Status" className={SELECT_WIDTH}>
+        <SelectValue>{label}</SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={OPEN}>Open</SelectItem>
+        <SelectItem value={ALL}>All statuses</SelectItem>
+        <SelectSeparator />
+        {STATUS_OPTIONS.map((status) => (
+          <SelectItem key={status.value} value={status.value}>
+            <span className="flex items-center gap-2">
+              <StatusIcon status={status.value} />
+              {status.label}
+            </span>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   )
 }
 
@@ -322,8 +390,10 @@ function SortSelect({
       onValueChange={(next) => onChange(next as BugReportSort)}
       value={value}
     >
-      <SelectTrigger className={SELECT_WIDTH}>
-        <SelectValue>{label}</SelectValue>
+      <SelectTrigger aria-label="Sort" className={SELECT_WIDTH}>
+        <SelectValue>
+          <span className="text-muted-foreground">Sort:</span> {label}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {SORT_OPTIONS.map((option) => (
@@ -340,13 +410,12 @@ function subMenuLabel(label: string, active: number): string {
   return active > 0 ? `${label} (${active})` : label
 }
 
-// Status and visibility inline; browser, device and person tucked into submenus so the bar and
+// Visibility inline; browser, device and person tucked into submenus so the bar and
 // the menu both stay short.
 function FiltersMenu({
   activeFilters,
   filters,
   reporters,
-  onToggleStatus,
   onToggleVisibility,
   onToggleBrowser,
   onToggleDevice,
@@ -355,7 +424,6 @@ function FiltersMenu({
   activeFilters: number
   filters: DashboardFilters
   reporters: ReporterOption[]
-  onToggleStatus: (value: BugReportStatus) => void
   onToggleVisibility: (value: BugReportVisibility) => void
   onToggleBrowser: (value: Browser) => void
   onToggleDevice: (value: Device) => void
@@ -373,19 +441,6 @@ function FiltersMenu({
         }
       />
       <DropdownMenuContent align="end" className="w-64">
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>Status</DropdownMenuLabel>
-          {STATUS_OPTIONS.map((status) => (
-            <DropdownMenuCheckboxItem
-              checked={filters.statuses.includes(status.value)}
-              key={status.value}
-              onCheckedChange={() => onToggleStatus(status.value)}
-            >
-              {status.label}
-            </DropdownMenuCheckboxItem>
-          ))}
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuLabel>Visibility</DropdownMenuLabel>
           {VISIBILITY_OPTIONS.map((visibility) => (
@@ -509,9 +564,12 @@ function SummaryRow({
       {filters.categories.map((category) => (
         <Pill key={category}>{formatCategoryLabel(category)}</Pill>
       ))}
-      {filters.statuses.map((status) => (
-        <Pill key={status}>{formatStatusLabel(status)}</Pill>
-      ))}
+      {isDefaultStatusFilter(filters.statuses) ||
+      filters.statuses.length === STATUS_OPTIONS.length
+        ? null
+        : filters.statuses.map((status) => (
+            <Pill key={status}>{formatStatusLabel(status)}</Pill>
+          ))}
       {filters.priorities.map((priority) => (
         <Pill key={priority}>{formatPriorityLabel(priority)}</Pill>
       ))}

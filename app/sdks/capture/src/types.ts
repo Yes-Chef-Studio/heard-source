@@ -86,6 +86,8 @@ export interface CaptureInitOptions {
   key: string
   host?: string
   autoMount?: boolean
+  // Heard: never show the "Report issue" side tab; the page opens the widget itself with open().
+  hideLauncher?: boolean
   mountTarget?: HTMLElement
   submitPath?: string
   zIndex?: number

@@ -4,8 +4,10 @@ import { useQuery } from "@tanstack/react-query"
 import { ArrowLeft, ExternalLink } from "lucide-react"
 import type { Route } from "next"
 import Link from "next/link"
+import { useCallback, useMemo } from "react"
 
 import { CategoryBadge } from "@/components/bug-reports/category-picker"
+import { TicketNav } from "@/components/ticket-nav"
 import { formatRelativeTime } from "@/lib/relative-time"
 import { type client, orpc } from "@/utils/orpc"
 import { SharedCommentForm } from "./shared-comment-form"
@@ -91,6 +93,17 @@ export function SharedTicketView({
     retry: false,
     meta: { silent: true },
   })
+  // Every ticket on the link, newest first, for the arrows when not opened from the list.
+  const listQuery = useQuery({
+    ...orpc.share.listReports.queryOptions({ input: { token } }),
+    retry: false,
+    meta: { silent: true },
+  })
+  const allIds = useMemo(
+    () => listQuery.data?.map((report) => report.id),
+    [listQuery.data]
+  )
+  const ticketHref = useCallback((id: string) => `/p/${token}/t/${id}`, [token])
 
   if (query.isLoading) {
     return <ShareLoading />
@@ -102,13 +115,22 @@ export function SharedTicketView({
   const ticket = query.data
   return (
     <ShareShell token={token}>
-      <Link
-        className="mb-4 inline-flex items-center gap-1 text-muted-foreground text-sm hover:text-foreground"
-        href={`/p/${token}` as Route}
-      >
-        <ArrowLeft className="size-4" />
-        All tickets
-      </Link>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <Link
+          className="inline-flex items-center gap-1 text-muted-foreground text-sm hover:text-foreground"
+          href={`/p/${token}` as Route}
+        >
+          <ArrowLeft className="size-4" />
+          All tickets
+        </Link>
+        <TicketNav
+          currentId={reportId}
+          fallbackIds={allIds}
+          hrefFor={ticketHref}
+          kind="client"
+          token={token}
+        />
+      </div>
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
         <Media ticket={ticket} />
         <div className="space-y-5">

@@ -13,6 +13,7 @@ import { DashboardPricingGate } from "@/app/(protected)/(dashboard)/_components/
 import { AppSidebar } from "@/components/app-sidebar"
 import { UnverifiedEmailBanner } from "@/components/auth/unverified-email-banner"
 import { DashboardBreadcrumbs } from "@/components/dashboard-breadcrumbs"
+import { HeardFeedbackFooter } from "@/components/heard-feedback"
 import { Shell } from "@/components/shell"
 import { client } from "@/utils/orpc"
 
@@ -85,6 +86,7 @@ export default async function DashboardLayout({
           ) : (
             children
           )}
+          <HeardFeedbackFooter className="mt-auto pb-2" />
         </Shell>
       </SidebarInset>
     </SidebarProvider>

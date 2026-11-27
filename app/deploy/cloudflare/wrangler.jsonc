@@ -24,7 +24,11 @@
       "class_name": "App",
       "image": "./app.Dockerfile",
       "image_build_context": "../..",
-      "image_vars": { "HEARD_URL": "https://heard.yeschef-dev.fyi" },
+      "image_vars": {
+        "HEARD_URL": "https://heard.yeschef-dev.fyi",
+        // Public key of the internal "Heard" project (Report a bug button). Empty hides the button.
+        "HEARD_FEEDBACK_KEY": ""
+      },
       "instance_type": "basic",
       // One instance: the API keeps some state (rate limits, background jobs) in memory.
       "max_instances": 1,

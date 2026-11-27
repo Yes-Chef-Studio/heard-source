@@ -35,6 +35,7 @@ export class CaptureSdkRuntime implements CaptureRuntimeController {
   private submitTransport: CaptureSubmitTransport | undefined
   private mountedTarget: HTMLElement | null = null
   private mountedUi: MountedCaptureUi | null = null
+  private hideLauncher = false
   private readonly debuggerCollector = new LazyDebuggerCollector()
   private activeRecording: RecordingController | null = null
   private currentMedia: CapturedMedia | null = null
@@ -59,6 +60,7 @@ export class CaptureSdkRuntime implements CaptureRuntimeController {
 
     this.runtimeConfig = config
     this.submitTransport = options.submitTransport
+    this.hideLauncher = options.hideLauncher ?? false
 
     if (options.autoMount ?? true) {
       this.whenSiteAllowed(config, () => this.mount(options.mountTarget))
@@ -134,7 +136,8 @@ export class CaptureSdkRuntime implements CaptureRuntimeController {
           this.reset()
         },
       },
-      getSiteColor(config)
+      getSiteColor(config),
+      this.hideLauncher
     )
     this.mountedTarget = mountTarget
   }

@@ -4,8 +4,9 @@ import { Button } from "@crikket/ui/components/ui/button"
 import { Loader2, Play } from "lucide-react"
 
 import { SelectionActionBar } from "@/components/selection-action-bar"
+import { saveOnTicketClick } from "@/lib/ticket-nav"
 import { useBugReportsActions } from "../../_hooks/use-bug-reports-actions"
-import { useBugReportsData } from "../../_hooks/use-bug-reports-data"
+import { PAGE_SIZE, useBugReportsData } from "../../_hooks/use-bug-reports-data"
 import { useBugReportsFilters } from "../../_hooks/use-bug-reports-filters"
 import { BugReportCard } from "./bug-report-card"
 import { BugReportsBulkActions } from "./bug-reports-bulk-actions"
@@ -26,6 +27,8 @@ export function BugReportsList({ projectId }: { projectId?: string } = {}) {
     isFetching,
     refetch,
     loadMoreRef,
+    listInput,
+    hasNextPage,
   } = useBugReportsData({
     search: filtersState.debouncedSearch,
     sort: filtersState.sort,
@@ -55,9 +58,9 @@ export function BugReportsList({ projectId }: { projectId?: string } = {}) {
         onReporterChange={filtersState.setReporter}
         onSearchChange={filtersState.setSearchValue}
         onSortChange={filtersState.setSort}
+        onStatusesChange={filtersState.setStatuses}
         onToggleBrowser={filtersState.toggleBrowser}
         onToggleDevice={filtersState.toggleDevice}
-        onToggleStatus={filtersState.toggleStatus}
         onToggleVisibility={filtersState.toggleVisibility}
         projectId={projectId}
         search={filtersState.searchValue}
@@ -136,7 +139,18 @@ export function BugReportsList({ projectId }: { projectId?: string } = {}) {
       ) : null}
 
       {reports.length > 0 ? (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+        <div
+          className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4"
+          onClickCapture={(event) =>
+            saveOnTicketClick(event, () => ({
+              kind: "dashboard",
+              ids: reports.map((report) => report.id),
+              input: listInput,
+              pageSize: PAGE_SIZE,
+              hasMore: Boolean(hasNextPage),
+            }))
+          }
+        >
           {reports.map((report) => (
             <BugReportCard
               isChecked={actionsState.selectedIds.has(report.id)}

@@ -9,6 +9,7 @@ import {
   bugReportComment,
   capturePublicKey,
 } from "@crikket/db/schema/bug-report"
+import { TEAM_EMAIL_DOMAIN } from "@crikket/shared/config/site"
 import {
   BUG_REPORT_SUBMISSION_STATUS_OPTIONS,
   CLIENT_STATUSES,
@@ -21,7 +22,7 @@ import {
   normalizeCategory,
 } from "@crikket/shared/constants/categories"
 import { ORPCError } from "@orpc/server"
-import { and, asc, count, desc, eq, inArray } from "drizzle-orm"
+import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm"
 import { nanoid } from "nanoid"
 import { z } from "zod"
 import { createNotification } from "../lib/notifications"
@@ -82,14 +83,32 @@ const readyReport = eq(
   BUG_REPORT_SUBMISSION_STATUS_OPTIONS.ready
 )
 
+// Tickets the Yes Chef team leave themselves (reporter email on the team's domain, or filed from
+// a signed-in team account) are internal: the client link only shows what the client left.
+const TEAM_EMAIL_PATTERN = `%@${TEAM_EMAIL_DOMAIN}`
+const leftByClient = sql`(
+  lower(coalesce(${bugReport.reporterEmail}, '')) NOT LIKE ${TEAM_EMAIL_PATTERN}
+  AND NOT EXISTS (
+    SELECT 1 FROM ${user}
+    WHERE ${user.id} = ${bugReport.reporterId}
+      AND lower(${user.email}) LIKE ${TEAM_EMAIL_PATTERN}
+  )
+)`
+
 async function requireReportInProject(projectId: string, reportId: string) {
-  const report = await db.query.bugReport.findFirst({
-    where: and(
-      eq(bugReport.id, reportId),
-      eq(bugReport.capturePublicKeyId, projectId),
-      readyReport
-    ),
-  })
+  // A plain select, not db.query: leftByClient's subquery needs the real table name.
+  const [report] = await db
+    .select()
+    .from(bugReport)
+    .where(
+      and(
+        eq(bugReport.id, reportId),
+        eq(bugReport.capturePublicKeyId, projectId),
+        readyReport,
+        leftByClient
+      )
+    )
+    .limit(1)
   if (!report) {
     throw new ORPCError("NOT_FOUND", { message: "Ticket not found" })
   }
@@ -128,7 +147,13 @@ export const getSharedProject = o
     const rows = await db
       .select({ status: bugReport.status, value: count() })
       .from(bugReport)
-      .where(and(eq(bugReport.capturePublicKeyId, project.id), readyReport))
+      .where(
+        and(
+          eq(bugReport.capturePublicKeyId, project.id),
+          readyReport,
+          leftByClient
+        )
+      )
       .groupBy(bugReport.status)
 
     const counts = Object.fromEntries(
@@ -156,6 +181,7 @@ export const listSharedReports = o
         and(
           eq(bugReport.capturePublicKeyId, project.id),
           readyReport,
+          leftByClient,
           input.status
             ? inArray(bugReport.status, statusesForClientStatus(input.status))
             : undefined

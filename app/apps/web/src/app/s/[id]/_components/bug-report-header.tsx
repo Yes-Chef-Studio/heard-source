@@ -9,7 +9,12 @@ import {
   StatusPicker,
 } from "@/components/bug-reports/status-picker"
 import { HeardLogo } from "@/components/heard-logo"
+import { TicketNav } from "@/components/ticket-nav"
 import type { SharedBugReport } from "./types"
+
+function dashboardTicketHref(id: string) {
+  return `/s/${id}`
+}
 
 interface BugReportHeaderProps {
   data: SharedBugReport
@@ -37,7 +42,7 @@ export function BugReportHeader({
         <Separator className="h-5 shrink-0" orientation="vertical" />
         <div className="flex min-w-0 items-center gap-2">
           <h1
-            className="truncate font-medium text-sm"
+            className="truncate font-medium font-sans text-sm"
             title={data.title ?? "Untitled"}
           >
             {data.title ?? "Untitled Bug Report"}
@@ -58,6 +63,11 @@ export function BugReportHeader({
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
+        <TicketNav
+          currentId={data.id}
+          hrefFor={dashboardTicketHref}
+          kind="dashboard"
+        />
         <span className="hidden text-muted-foreground text-xs sm:inline-block">
           {new Date(data.createdAt).toLocaleString()}
         </span>

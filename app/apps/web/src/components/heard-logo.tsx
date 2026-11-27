@@ -36,7 +36,9 @@ export function HeardLogo({
   return (
     <span className={cn("inline-flex items-center gap-2", className)}>
       <HeardMark className={markClassName} />
-      <span className={cn("font-bold font-mono tracking-tight", wordClassName)}>
+      <span
+        className={cn("font-bold font-wordmark tracking-tight", wordClassName)}
+      >
         {siteConfig.name.toLowerCase()}
       </span>
     </span>

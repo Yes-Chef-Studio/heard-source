@@ -2,8 +2,27 @@ import { env } from "@crikket/env/web"
 import "@crikket/ui/styles/dashboard.css"
 import { siteConfig } from "@crikket/shared/config/site"
 import type { Metadata } from "next"
+import { Geist, Geist_Mono, IBM_Plex_Mono, Unbounded } from "next/font/google"
 import NextTopLoader from "nextjs-toploader"
 import Providers from "@/components/providers"
+
+// Yes Chef brand type, as on yeschef.studio: Unbounded for headings, Geist for text, IBM Plex
+// Mono for labels and code. Geist Mono is kept only for the Heard wordmark (see heard-logo.tsx).
+// next/font self-hosts these at build time, so no request goes to Google at runtime.
+const geist = Geist({ subsets: ["latin"], variable: "--font-geist" })
+const unbounded = Unbounded({
+  subsets: ["latin"],
+  variable: "--font-unbounded",
+})
+const plexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-plex-mono",
+})
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  variable: "--font-geist-mono",
+})
 
 export const metadata: Metadata = {
   metadataBase: new URL(env.NEXT_PUBLIC_APP_URL),
@@ -50,7 +69,11 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html
+      className={`${geist.variable} ${unbounded.variable} ${plexMono.variable} ${geistMono.variable}`}
+      lang="en"
+      suppressHydrationWarning
+    >
       <body className="antialiased">
         <NextTopLoader />
         <Providers>{children}</Providers>

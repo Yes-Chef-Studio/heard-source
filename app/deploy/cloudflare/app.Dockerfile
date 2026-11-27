@@ -7,10 +7,13 @@ ENV NODE_ENV=production
 
 # Public URL, baked into the dashboard's client bundle at build time.
 ARG HEARD_URL
+# Public key of the internal "Heard" project: the "Report a bug" footer button sends there. Empty hides it.
+ARG HEARD_FEEDBACK_KEY=
 ENV NEXT_PUBLIC_SITE_URL=${HEARD_URL} \
     NEXT_PUBLIC_APP_URL=${HEARD_URL} \
     NEXT_PUBLIC_SERVER_URL=${HEARD_URL} \
-    NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=false
+    NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=false \
+    NEXT_PUBLIC_CRIKKET_KEY=${HEARD_FEEDBACK_KEY}
 
 COPY package.json bun.lock turbo.json tsconfig.json biome.jsonc ./
 COPY apps ./apps

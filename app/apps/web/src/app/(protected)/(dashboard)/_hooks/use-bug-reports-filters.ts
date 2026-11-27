@@ -7,6 +7,7 @@ import {
   type BugReportSort,
   type BugReportStatus,
   type BugReportVisibility,
+  OPEN_STATUS_VALUES,
 } from "@crikket/shared/constants/bug-report"
 import { CATEGORY_VALUES } from "@crikket/shared/constants/categories"
 import { BROWSER_VALUES, DEVICE_VALUES } from "@crikket/shared/constants/device"
@@ -51,6 +52,7 @@ const SORT_VALUES = [
   BUG_REPORT_SORT_OPTIONS.updated,
   BUG_REPORT_SORT_OPTIONS.priorityHigh,
   BUG_REPORT_SORT_OPTIONS.priorityLow,
+  BUG_REPORT_SORT_OPTIONS.status,
 ] as const satisfies readonly BugReportSort[]
 
 const CATEGORY_FILTER_VALUES = [
@@ -60,7 +62,7 @@ const CATEGORY_FILTER_VALUES = [
 
 // Everything "Clear filters" resets. Search and sort are kept.
 const CLEARED_FILTERS = {
-  statuses: EMPTY_FILTERS.statuses,
+  statuses: [...OPEN_STATUS_VALUES],
   priorities: EMPTY_FILTERS.priorities,
   categories: EMPTY_FILTERS.categories,
   visibilities: EMPTY_FILTERS.visibilities,
@@ -93,9 +95,10 @@ export function useBugReportsFilters() {
       sort: parseAsStringLiteral(SORT_VALUES)
         .withOptions({ clearOnDefault: true })
         .withDefault(BUG_REPORT_SORT_OPTIONS.newest),
+      // Closed and cancelled tickets are hidden until someone picks them in the Status filter.
       statuses: parseAsArrayOf(parseAsStringLiteral(STATUS_VALUES))
         .withOptions({ clearOnDefault: true })
-        .withDefault([]),
+        .withDefault([...OPEN_STATUS_VALUES]),
       priorities: parseAsArrayOf(parseAsStringLiteral(PRIORITY_VALUES))
         .withOptions({ clearOnDefault: true })
         .withDefault([]),
@@ -183,10 +186,9 @@ export function useBugReportsFilters() {
       )
     },
     hasActiveFilters: hasFilters || debouncedSearch.length > 0,
-    toggleStatus: (value: DashboardFilters["statuses"][number]) =>
-      setFilterSearchQuery({
-        statuses: toggleValue(filters.statuses, value),
-      }).catch(() => undefined),
+    // A list of statuses from the toolbar's Status select (see StatusSelect).
+    setStatuses: (value: DashboardFilters["statuses"]) =>
+      setFilterSearchQuery({ statuses: value }).catch(() => undefined),
     // One priority at a time from the toolbar; an empty value shows all.
     setPriority: (value: DashboardFilters["priorities"][number] | "") =>
       setFilterSearchQuery({

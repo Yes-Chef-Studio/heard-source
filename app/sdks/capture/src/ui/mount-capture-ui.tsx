@@ -11,11 +11,15 @@ export function mountCaptureUi(
   zIndex: number,
   callbacks: CaptureUiCallbacks,
   // The project's tab colour (#rrggbb), or null for the default.
-  color: string | null = null
+  color: string | null = null,
+  hideLauncher = false
 ): MountedCaptureUi {
   const hostElement = document.createElement("div")
   // Heard: excluded from DOM snapshots (see media/capture-snapshot.ts).
   hostElement.setAttribute("data-heard-widget", "")
+  if (hideLauncher) {
+    hostElement.setAttribute("data-heard-no-launcher", "")
+  }
   applyLauncherColor(hostElement, color)
   const shadowRoot = hostElement.attachShadow({
     mode: "open",

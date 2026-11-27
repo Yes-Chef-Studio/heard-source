@@ -13,6 +13,7 @@ import { useState } from "react"
 
 import { CategoryBadge } from "@/components/bug-reports/category-picker"
 import { formatRelativeTime, formatSite } from "@/lib/relative-time"
+import { saveOnTicketClick } from "@/lib/ticket-nav"
 import { type client, orpc } from "@/utils/orpc"
 import {
   ClientStatusBadge,
@@ -197,7 +198,16 @@ export function SharedProjectView({ token }: { token: string }) {
               : "No feedback yet. Tickets your team leaves on the site will appear here."}
           </div>
         ) : null}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div
+          className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+          onClickCapture={(event) =>
+            saveOnTicketClick(event, () => ({
+              kind: "client",
+              token,
+              ids: reports.map((report) => report.id),
+            }))
+          }
+        >
           {reports.map((report) => (
             <TicketCard key={report.id} report={report} token={token} />
           ))}

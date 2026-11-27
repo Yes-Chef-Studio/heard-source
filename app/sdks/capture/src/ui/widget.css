@@ -92,6 +92,11 @@
     }
   }
 
+  /* Heard: the page opens the widget from its own button (hideLauncher). */
+  :host([data-heard-no-launcher]) .capture-launcher {
+    display: none !important;
+  }
+
   .capture-launcher {
     /* Heard: a vertical "Report issue" tab on the right edge, centred. It's turned 180 degrees so
        the label reads bottom to top; the rounded corners below end up on the tab's visible left. */

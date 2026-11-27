@@ -6,7 +6,7 @@ import { CircleAlert, Loader2 } from "lucide-react"
 import type { Route } from "next"
 import Link from "next/link"
 import type { ReactNode } from "react"
-
+import { HeardFeedbackButton } from "@/components/heard-feedback"
 import { HeardLogo } from "@/components/heard-logo"
 import { SourceNotice } from "@/components/source-notice"
 
@@ -68,8 +68,9 @@ export function ShareShell({
         ) : null}
       </header>
       {children}
-      <footer className="mt-12 border-t pt-4">
+      <footer className="mt-12 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
         <SourceNotice />
+        <HeardFeedbackButton />
       </footer>
     </div>
   )

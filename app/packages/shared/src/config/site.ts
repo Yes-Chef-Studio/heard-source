@@ -1,3 +1,6 @@
+// The Yes Chef team's email domain. Tickets left from it are hidden on client share links.
+export const TEAM_EMAIL_DOMAIN = "yeschef.studio"
+
 export const siteConfig = {
   // Product name everywhere in the UI (tab titles, wordmark, emails). Rename here.
   name: "Heard",

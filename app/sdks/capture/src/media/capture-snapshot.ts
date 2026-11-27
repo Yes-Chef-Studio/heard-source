@@ -69,7 +69,14 @@ function encodeCanvas(
   quality: number
 ): Promise<string | null> {
   return new Promise<Blob | null>((resolve) => {
-    canvas.toBlob(resolve, "image/webp", quality)
+    // A tainted canvas (cross-origin image or video without CORS) throws here, inside the
+    // promise, so the callers' try/catch can't see it. Treat it as "no pixels" so one video
+    // thumbnail can't fail the whole screenshot; the renderer falls back to the poster.
+    try {
+      canvas.toBlob(resolve, "image/webp", quality)
+    } catch {
+      resolve(null)
+    }
   }).then(blobToDataUrl)
 }
 

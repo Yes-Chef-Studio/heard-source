@@ -5,6 +5,7 @@ import {
   type BugReportSort,
   type BugReportStatus,
   type BugReportVisibility,
+  OPEN_STATUS_VALUES,
 } from "@crikket/shared/constants/bug-report"
 import {
   CATEGORIES,
@@ -71,6 +72,7 @@ export const SORT_OPTIONS: Array<{ value: BugReportSort; label: string }> = [
     value: BUG_REPORT_SORT_OPTIONS.priorityLow,
     label: "Priority: Low to High",
   },
+  { value: BUG_REPORT_SORT_OPTIONS.status, label: "Status" },
 ]
 
 export interface DashboardFilters {
@@ -88,7 +90,7 @@ export interface DashboardFilters {
 }
 
 export const EMPTY_FILTERS: DashboardFilters = {
-  statuses: [],
+  statuses: [...OPEN_STATUS_VALUES],
   priorities: [],
   categories: [],
   visibilities: [],
@@ -98,9 +100,17 @@ export const EMPTY_FILTERS: DashboardFilters = {
   reporter: "",
 }
 
+// The default Status filter ("Open": everything but closed and cancelled).
+export function isDefaultStatusFilter(statuses: BugReportStatus[]): boolean {
+  return (
+    statuses.length === OPEN_STATUS_VALUES.length &&
+    OPEN_STATUS_VALUES.every((value) => statuses.includes(value))
+  )
+}
+
 export function countActiveFilters(filters: DashboardFilters): number {
   return (
-    filters.statuses.length +
+    (isDefaultStatusFilter(filters.statuses) ? 0 : 1) +
     filters.priorities.length +
     filters.categories.length +
     filters.visibilities.length +

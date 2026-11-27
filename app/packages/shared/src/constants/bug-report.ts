@@ -63,6 +63,18 @@ export const BUG_REPORT_STATUSES: ReadonlyArray<{
 
 export const DEFAULT_BUG_REPORT_STATUS: BugReportStatus = "to_do"
 
+// Hidden from ticket lists unless someone picks them in the Status filter.
+export const HIDDEN_BY_DEFAULT_STATUSES: readonly BugReportStatus[] = [
+  "cancelled",
+  "closed",
+]
+
+// What the Status filter shows by default: everything still in play.
+export const OPEN_STATUS_VALUES: readonly BugReportStatus[] =
+  BUG_REPORT_STATUSES.map((option) => option.value).filter(
+    (value) => !HIDDEN_BY_DEFAULT_STATUSES.includes(value)
+  )
+
 export function getBugReportStatusMeta(status: string) {
   return (
     BUG_REPORT_STATUSES.find((option) => option.value === status) ??
@@ -104,6 +116,8 @@ export const BUG_REPORT_SORT_OPTIONS = {
   updated: "updated",
   priorityHigh: "priority_high",
   priorityLow: "priority_low",
+  // Workflow order: To do first, Closed last (BUG_REPORT_STATUSES order).
+  status: "status",
 } as const
 
 export type BugReportSort =

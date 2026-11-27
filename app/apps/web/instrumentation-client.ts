@@ -1,14 +1,8 @@
 import { env } from "@crikket/env/web"
 import { initPostHog } from "@crikket/shared/lib/posthog"
-import { init } from "@crikket-io/capture"
 
-if (env.NEXT_PUBLIC_CRIKKET_KEY) {
-  init({
-    key: env.NEXT_PUBLIC_CRIKKET_KEY,
-    host: env.NEXT_PUBLIC_SERVER_URL,
-  })
-}
-
+// Heard: the self-feedback widget (NEXT_PUBLIC_CRIKKET_KEY) is opened from a footer button and
+// loaded on demand, see src/components/heard-feedback.tsx.
 initPostHog({
   key: env.NEXT_PUBLIC_POSTHOG_KEY,
   host: env.NEXT_PUBLIC_POSTHOG_HOST,
